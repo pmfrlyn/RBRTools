@@ -120,7 +120,7 @@ def main():
 
     csetup = parse_lsp_file(sys.argv[1])
     csetup2 = parse_lsp_file(sys.argv[2])
-    
+
     # compare setups
     diffs = defaultdict(list)
 
@@ -132,7 +132,7 @@ def main():
         
     if not diffs:
         print("No differences")
-        exit
+        exit()
 
     for section_name, diff in diffs.items():
         print("{}:".format(section_name))
