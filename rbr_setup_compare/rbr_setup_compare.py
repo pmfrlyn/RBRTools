@@ -53,6 +53,16 @@ def lsp_parser():
             pp.Literal("))")
         )
 
+def parse_lsp_file(filename, setup_name="default"):
+    setup_data = lsp_parser()
+
+    with open(filename) as file:
+        lsp_text = file.read()
+
+    results = setup_data.parseString(lsp_text)
+
+    return CarSetup.from_parser(results, setup_name)
+
 @dataclass
 class Vector:
     x: float
@@ -103,16 +113,6 @@ class CarSetup(dict):
 
         return carsetup
 
-def parse_lsp_file(filename, setup_name="default"):
-    setup_data = lsp_parser()
-
-    with open(filename) as file:
-        lsp_text = file.read()
-
-    results = setup_data.parseString(lsp_text)
-
-    return CarSetup.from_parser(results,)
-
 def main(): 
     if len(sys.argv) != 3:
         print("Usage rbr_setup_compare.py file1 file2")
@@ -125,7 +125,6 @@ def main():
     diffs = defaultdict(list)
 
     for section_name, section_data in csetup.items():
-        # compare
         for key, value in section_data.items():
             if value != csetup2[section_name][key]:
                 diffs[section_name].append((key, value, csetup2[section_name][key]))
@@ -135,9 +134,10 @@ def main():
         exit()
 
     for section_name, diff in diffs.items():
-        print("{}:".format(section_name))
+        print("\n{}:".format(section_name))
         for dk, dv1, dv2 in diff:
             print("\t{}: {} -> {}".format(dk, dv1, dv2))
         
+
 if __name__ == "__main__": 
     main()

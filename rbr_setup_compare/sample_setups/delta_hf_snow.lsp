@@ -9,7 +9,7 @@
                   )
  Drive           (":-D"
                   CenterDiffMaxTorque 0.000000
-                  FrontDiffMaxTorque 141.000000
+                  FrontDiffMaxTorque 140.000000
                   RearDiffMaxTorque 0.000000
                   MaxBrakePressureFront 6600000.000000
                   MaxBrakePressureRear 2800000.000000
