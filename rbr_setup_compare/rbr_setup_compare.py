@@ -117,7 +117,7 @@ class CarSetup(dict):
 def main(): 
     if len(sys.argv) != 3:
         print("Usage rbr_setup_compare.py file1 file2")
-        exit(1)
+        sys.exit(1)
 
     csetup = parse_lsp_file(sys.argv[1])
     csetup2 = parse_lsp_file(sys.argv[2])
@@ -132,7 +132,7 @@ def main():
         
     if not diffs:
         print("No differences")
-        exit()
+        sys.exit()
 
     for section_name, diff in diffs.items():
         print("\n{}:".format(section_name))
