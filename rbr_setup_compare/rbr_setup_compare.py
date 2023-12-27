@@ -31,7 +31,8 @@ def lsp_section(section_name):
                     pp.pyparsing_common.number().setName("Z"))
     
     section_id = pp.QuotedString(quoteChar="\"", unquoteResults=True).setName("section_id")
-    key_value_pair = (pp.Word(pp.alphanums + "_").setName("key") + (number_value ^ vector_value).setName("value"))
+    key_value_pair = (pp.Word(pp.alphanums + "_").setName("key") + 
+                      (number_value ^ vector_value).setName("value"))
     extra_key = pp.Word(pp.alphanums + "_").setName("extra_key")
 
     return pp.Group((pp.Literal(section_name).setName("section") +
