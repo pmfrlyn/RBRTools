@@ -45,7 +45,7 @@ def lsp_section(section_name):
             ).setName("Values")))
 
 def lsp_parser():
-     return (
+    return (
         pp.Literal("((") + pp.QuotedString(quoteChar="\"", unquoteResults=True).setName("header") +
             (
                 pp.Or([lsp_section(secname) for secname in SECTIONS])
