@@ -3,3 +3,4 @@ build
 dist
 *.basespec
 *.spec
+__pycache__
