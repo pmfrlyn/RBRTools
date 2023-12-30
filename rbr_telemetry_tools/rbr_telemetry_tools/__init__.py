@@ -1,7 +1,16 @@
+import configparser
 import struct
 from .format import FORMAT_STRUCT_PATTERN, MESSAGE_LENGTH, FORMAT_FIELDS
 
-# F = 1.8*(K-273) + 32
+MAPS_INDEX = {}
+
+def configure_map_index(map_ini_file):
+    config = configparser.ConfigParser()
+    config.read(map_ini_file)
+    MAPS_INDEX.update({int(s[3:]): config[s]["StageName"].replace("\"", "")
+                       for s in config.sections()
+                            if "Map" in s and "StageName" in config[s]})
+
 
 def process_telemetry_packet(data, unit=None):
     point = {}
@@ -13,10 +22,9 @@ def process_telemetry_packet(data, unit=None):
                 value = 1.8 * (value - 273) + 32
             elif unit == "C":
                 value = value - 273.15
-                #if ".brake." in field_name:
-                #    value = value / 10
 
         point[field_name] = value
 
+    point["stage.name"] = MAPS_INDEX.get(point['stage.index'], "UNKNOWN")
+
     return point
-    
