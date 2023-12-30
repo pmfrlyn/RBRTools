@@ -44,9 +44,9 @@ FORMAT_INFO = (
     ("f", "car.accelerations.yaw"),       
     
     ("f", "engine.rpm"),
-    ("f", "engine.radiatorCoolantTemperature"),       #kelvin
-    ("f", "engine.engineCoolantTemperature"),         #kelvin
-    ("f", "engine.engineTemperature"),                #kelvin
+    ("f", "engine.radiator_coolant_temperature"),       #kelvin
+    ("f", "engine.engine_coolant_temperature"),         #kelvin
+    ("f", "engine.engine_temperature"),                #kelvin
     
     ("f", "suspension.lf.spring_deflection"),
     ("f", "suspension.lf.rollbar_force"),
@@ -58,15 +58,15 @@ FORMAT_INFO = (
     ("f", "suspension.lf.damper.damage"),
     ("f", "suspension.lf.damper.pistonvelocity"),
     
-    ("f", "suspension.lf.brake.layertemperature"),    #kelvin?
+    ("f", "suspension.lf.brake.layer_temperature"),    #kelvin?
     ("f", "suspension.lf.brake.temperature"),         #kelvin?
     ("f", "suspension.lf.brake.wear"),
     
     ("f", "suspension.lf.tire.pressure"),
     ("f", "suspension.lf.tire.temperature"),
-    ("f", "suspension.lf.tire.carcassTemperature"),
-    ("f", "suspension.lf.tire.treadTemperature"),
-    ("I", "suspension.lf.tire.currentSegment"),
+    ("f", "suspension.lf.tire.carcass_temperature"),
+    ("f", "suspension.lf.tire.tread_temperature"),
+    ("I", "suspension.lf.tire.current_segment"),
     
     ("f", "suspension.lf.tire.segment1.temperature"),
     ("f", "suspension.lf.tire.segment1.wear"),
@@ -102,15 +102,15 @@ FORMAT_INFO = (
     ("f", "suspension.rf.damper.damage"),
     ("f", "suspension.rf.damper.pistonvelocity"),
     
-    ("f", "suspension.rf.brake.layertemperature "),
+    ("f", "suspension.rf.brake.layer_temperature "),
     ("f", "suspension.rf.brake.temperature"),
     ("f", "suspension.rf.brake.wear"),
     
     ("f", "suspension.rf.tire.pressure"),
     ("f", "suspension.rf.tire.temperature"),
-    ("f", "suspension.rf.tire.carcassTemperature"),
-    ("f", "suspension.rf.tire.treadTemperature"),
-    ("I", "suspension.rf.tire.currentSegment"),
+    ("f", "suspension.rf.tire.carcass_temperature"),
+    ("f", "suspension.rf.tire.tread_temperature"),
+    ("I", "suspension.rf.tire.current_segment"),
     
     ("f", "suspension.rf.tire.segment1.temperature"),
     ("f", "suspension.rf.tire.segment1.wear"),
@@ -146,15 +146,15 @@ FORMAT_INFO = (
     ("f", "suspension.lb.damper.damage"),
     ("f", "suspension.lb.damper.pistonvelocity"),
     
-    ("f", "suspension.lb.brake.layertemperature "),
+    ("f", "suspension.lb.brake.layer_temperature"),
     ("f", "suspension.lb.brake.temperature"),
     ("f", "suspension.lb.brake.wear"),
     
     ("f", "suspension.lb.tire.pressure"),
     ("f", "suspension.lb.tire.temperature"),
-    ("f", "suspension.lb.tire.carcassTemperature"),
-    ("f", "suspension.lb.tire.treadTemperature"),
-    ("I", "suspension.lb.tire.currentSegment"),
+    ("f", "suspension.lb.tire.carcass_temperature"),
+    ("f", "suspension.lb.tire.tread_temperature"),
+    ("I", "suspension.lb.tire.current_segment"),
     
     ("f", "suspension.lb.tire.segment1.temperature"),
     ("f", "suspension.lb.tire.segment1.wear"),
@@ -190,15 +190,15 @@ FORMAT_INFO = (
     ("f", "suspension.rb.damper.damage"),
     ("f", "suspension.rb.damper.pistonvelocity"),
    
-    ("f", "suspension.rb.brake.layertemperature"),
+    ("f", "suspension.rb.brake.layer_temperature"),
     ("f", "suspension.rb.brake.temperature"),
     ("f", "suspension.rb.brake.wear"),
    
     ("f", "suspension.rb.tire.pressure"),
     ("f", "suspension.rb.tire.temperature"),
-    ("f", "suspension.rb.tire.carcassTemperature"),
-    ("f", "suspension.rb.tire.treadTemperature"),
-    ("I", "suspension.rb.tire.currentSegment"),
+    ("f", "suspension.rb.tire.carcass_temperature"),
+    ("f", "suspension.rb.tire.tread_temperature"),
+    ("I", "suspension.rb.tire.current_segment"),
    
     ("f", "suspension.rb.tire.segment1.temperature"),
     ("f", "suspension.rb.tire.segment1.wear"),

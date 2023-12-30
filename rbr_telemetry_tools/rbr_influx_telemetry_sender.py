@@ -6,6 +6,8 @@ from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 
 from rbr_telemetry_tools import MESSAGE_LENGTH, FORMAT_FIELDS, process_telemetry_packet
 
+RBR_INSTALL_LOCATION = "D:\\Richard Burns Rally"
+RBR_MAPS_INI = RBR_INSTALL_LOCATION + "\\Maps\\tracks.ini"
 
 bucket = "rbrtelemetry"
 org = "klaw.cloud"
@@ -41,7 +43,6 @@ async def rbr_telemetry_client(host, port, data_queue: asyncio.Queue):
     sock = socket.socket(socket.AF_INET, # Internet
                      socket.SOCK_DGRAM) # UDP
     sock.bind((UDP_IP, UDP_PORT))
-    #sock.settimeout(30)
     
     data, address = sock.recvfrom(664)
     await data_queue.put(data)
@@ -53,7 +54,7 @@ async def main():
 
     loop = asyncio.get_event_loop()
     while not stopped.is_set():
-        try:
+        try:            
             await rbr_telemetry_client(UDP_IP, UDP_PORT, data_queue)
             await rbr_telemetry_send(data_queue)
         except KeyboardInterrupt:
