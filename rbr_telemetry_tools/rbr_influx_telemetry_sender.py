@@ -9,7 +9,7 @@ import influxdb_client
 
 
 from rbr_telemetry_tools import (
-    MESSAGE_LENGTH, FORMAT_FIELDS, MAPS_INDEX,
+    MESSAGE_LENGTH, MAPS_INDEX,
     process_telemetry_packet, configure_map_index)
 
 RBR_INSTALL_LOCATION = "D:\\Richard Burns Rally"
@@ -79,7 +79,7 @@ async def rbr_telemetry_client(host, port, data_queue: asyncio.Queue):
 
     sock.settimeout(1)
     try:
-        data, _ = sock.recvfrom(664)
+        data, _ = sock.recvfrom(MESSAGE_LENGTH)
         point = process_telemetry_packet(data, unit="C")
 
         current_stage = point['stage.index']
@@ -124,7 +124,3 @@ async def main():
     loop.stop()
 
 asyncio.run(main())
-
-
-
-
