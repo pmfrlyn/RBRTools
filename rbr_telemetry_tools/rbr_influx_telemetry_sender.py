@@ -64,6 +64,21 @@ async def rbr_telemetry_send(data_queue: asyncio.Queue):
     
         await write_api.write(bucket="rbrtelemetry", record=influx_point)
 
+def read_rbr_telemetry(host, port):
+    sock = socket.socket(socket.AF_INET, # Internet
+                         socket.SOCK_DGRAM) # UDP
+    sock.bind((UDP_IP, UDP_PORT))
+    sock.settimeout(0.25)
+
+    try:
+        data, _ = sock.recvfrom(MESSAGE_LENGTH)
+    except socket.timeout:
+        data = None
+    finally:
+        sock.close()
+        return data
+    
+
 async def rbr_telemetry_client(host, port, data_queue: asyncio.Queue):
     global current_stage
     global current_total_steps
@@ -71,15 +86,12 @@ async def rbr_telemetry_client(host, port, data_queue: asyncio.Queue):
     global paused_total_steps
     global stage_attempt
 
-    sock = socket.socket(socket.AF_INET, # Internet
-                     socket.SOCK_DGRAM) # UDP
-    sock.bind((UDP_IP, UDP_PORT))
-    
     point = None
+    new_stage = current_stage is None
 
-    sock.settimeout(1)
-    try:
-        data, _ = sock.recvfrom(MESSAGE_LENGTH)
+    data = await asyncio.get_running_loop().run_in_executor(None, read_rbr_telemetry, host, port)
+
+    if data:
         point = process_telemetry_packet(data, unit="C")
 
         current_stage = point['stage.index']
@@ -93,34 +105,40 @@ async def rbr_telemetry_client(host, port, data_queue: asyncio.Queue):
             elif paused_stage == current_stage and paused_total_steps <= current_total_steps:
                 print("Resuming From Pause")
             elif paused_stage != current_stage:
-                print("New Stage!")
+                new_stage = True
                 stage_attempt = 1
 
             paused_stage = paused_total_steps = None
 
+        if new_stage:
+            print("Starting Stage - SS: {}, Steps: {}".format("{} ({})".format(MAPS_INDEX.get(current_stage, current_stage), current_stage), current_total_steps))
+
         await data_queue.put(point)
-    except socket.timeout:
+    else:
         if not(paused_stage and paused_total_steps):
             paused_stage = current_stage
             paused_total_steps = current_total_steps
             print("Waiting for telemetry...")
         else:
             print("Paused - SS: {}, Steps: {}".format("{} ({})".format(MAPS_INDEX.get(paused_stage, paused_stage), paused_stage), paused_total_steps))
-    finally:
-        sock.close()
+
 
 async def main():
     data_queue = asyncio.Queue()
-
     loop = asyncio.get_event_loop()
-    while True:
-        t1 = loop.create_task(
-                rbr_telemetry_client(UDP_IP, UDP_PORT, data_queue))
-        t2 = loop.create_task(rbr_telemetry_send(data_queue))
+    running = loop.create_future()
 
-        await t1
-        await t2
-        
-    loop.stop()
+    try:
+        while True:
+            await rbr_telemetry_client(UDP_IP, UDP_PORT, data_queue)
+            await rbr_telemetry_send(data_queue)
+    except KeyboardInterrupt:
+        running.set_result(False)
+
+    try:
+        await running
+    finally:
+        loop.stop()
+
 
 asyncio.run(main())
