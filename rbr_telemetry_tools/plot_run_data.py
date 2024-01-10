@@ -31,11 +31,11 @@ def query_from_influx(session_id, run_id, bucket="rbrtelemetry", measurement="RB
         |> filter(fn: (r) => r["session_id"] == "{session_id}")
         |> filter(fn: (r) => r["stage.run"] == "{run_id}")
         |> filter(fn: (r) => r["_field"] == "car.position_x" or 
-                            r["_field"] == "car.position_y" or 
-                            r["_field"] == "car.position_z" or
-                            r["_field"] == "stage.distance_to_end" or 
-                            r["_field"] == "car.speed" or 
-                            r["_field"] == "stage.name")
+                             r["_field"] == "car.position_y" or 
+                             r["_field"] == "car.position_z" or
+                             r["_field"] == "stage.distance_to_end" or 
+                             r["_field"] == "car.speed" or 
+                             r["_field"] == "stage.name")
         |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
         |> group(columns: ["stage.run_attempt"])""".format(
             bucket=bucket,
