@@ -59,6 +59,7 @@ for label, vector_vals in run_vals.items():
     ax.plot(vector_vals[0][0], vector_vals[1][0], markersize=5, marker="o", markerfacecolor="blue")
     ax.plot(vector_vals[0][-1], vector_vals[1][-1], markersize=5, marker="o", markerfacecolor="red")
 
+ax.set_aspect('equal', adjustable="box")
 
 plt.legend()
 plt.show()
