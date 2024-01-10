@@ -25,10 +25,13 @@ driver = "spots"
 UDP_IP = "10.0.0.30"
 UDP_PORT = 6776
 
+start_time = datetime.datetime.now()
 current_stage = None
 current_total_steps = None
-stage_attempt = 1
+stage_run = 1
+stage_run_attempt = 1
 
+pause_announced = False
 paused_stage = None
 paused_total_steps = None
 
@@ -52,7 +55,8 @@ async def rbr_telemetry_send(data_queue: asyncio.Queue):
         influx_point = influxdb_client.Point("RBR_RUN")
         influx_point.tag("driver", driver)
         influx_point.tag("session_id", session_tag)
-        influx_point.tag("stage.attempt", stage_attempt)
+        influx_point.tag("stage.run", stage_run)
+        influx_point.tag("stage.run_attempt", stage_run_attempt)
 
         for tag in tag_fields:
             influx_point.tag(tag, point[tag])
@@ -84,7 +88,9 @@ async def rbr_telemetry_client(host, port, data_queue: asyncio.Queue):
     global current_total_steps
     global paused_stage
     global paused_total_steps
-    global stage_attempt
+    global stage_run
+    global stage_run_attempt
+    global pause_announced
 
     point = None
     new_stage = current_stage is None
@@ -99,31 +105,38 @@ async def rbr_telemetry_client(host, port, data_queue: asyncio.Queue):
 
         # handle the paused state and resume with the correct data updates
         if paused_stage and paused_total_steps:
+            pause_announced = False
+
             if paused_stage == current_stage and paused_total_steps > current_total_steps:
                 print("Stage Restart!")
-                stage_attempt += 1
+                new_stage = True
+                stage_run_attempt += 1
             elif paused_stage == current_stage and paused_total_steps <= current_total_steps:
                 print("Resuming From Pause")
             elif paused_stage != current_stage:
                 new_stage = True
-                stage_attempt = 1
+                stage_run += 1
+                stage_run_attempt = 1
 
             paused_stage = paused_total_steps = None
 
         if new_stage:
-            print("Starting Stage - SS: {}, Steps: {}".format("{} ({})".format(MAPS_INDEX.get(current_stage, current_stage), current_stage), current_total_steps))
+            print("Starting Stage - SS: {}, Run: {}, Attempt: {}".format("{} ({})".format(
+                MAPS_INDEX.get(current_stage, current_stage), current_stage), stage_run, stage_run_attempt))
 
         await data_queue.put(point)
     else:
         if not(paused_stage and paused_total_steps):
             paused_stage = current_stage
             paused_total_steps = current_total_steps
-            print("Waiting for telemetry...")
         else:
-            print("Paused - SS: {}, Steps: {}".format("{} ({})".format(MAPS_INDEX.get(paused_stage, paused_stage), paused_stage), paused_total_steps))
+            if not pause_announced:
+                print("Paused - SS: {}, Steps: {}".format("{} ({})".format(MAPS_INDEX.get(paused_stage, paused_stage), paused_stage), paused_total_steps))
+                pause_announced = True
 
 
 async def main():
+    print("RBR Influx Telemetry Sender ({})".format(session_tag))
     data_queue = asyncio.Queue()
     loop = asyncio.get_event_loop()
     running = loop.create_future()
