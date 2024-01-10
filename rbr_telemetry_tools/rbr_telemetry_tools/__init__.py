@@ -7,10 +7,11 @@ MAPS_INDEX = {}
 def configure_map_index(map_ini_file):
     config = configparser.ConfigParser()
     config.read(map_ini_file)
-    MAPS_INDEX.update({int(s[3:]): config[s]["StageName"].replace("\"", "")
+
+    MAPS_INDEX.update({int(s.replace("Map", "")): config[s]["StageName"].replace("\"", "")
                        for s in config.sections()
                             if "Map" in s and "StageName" in config[s]})
-
+    
 
 def process_telemetry_packet(data, unit=None):
     point = {}

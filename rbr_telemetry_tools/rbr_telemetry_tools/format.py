@@ -5,7 +5,7 @@ MESSAGE_LENGTH = 664
 FORMAT_INFO = (
     ("<", ""),                         #little endian                    
     ("I", "general.total_steps"),
-    ("i", "stage.index"),
+    ("I", "stage.index"),
     ("f", "stage.progress"),
     ("f", "stage.total_race_time"),    #seconds?
     ("f", "stage.drive_line_location"),
