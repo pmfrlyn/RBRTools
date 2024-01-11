@@ -4,3 +4,4 @@ dist
 *.basespec
 *.spec
 __pycache__
+output.txt
