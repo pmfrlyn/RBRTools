@@ -20,14 +20,27 @@ client = influxdb_client.InfluxDBClient(
 MEASUREMENT = "RBR_RUN"
 BUCKET = "rbrtelemetry"
 
-SESSION_ID = "2024-01-09 21:30:06.141923"
-#SESSION_ID = "2024-01-10 13:57:20.903919"
+#SESSION_ID = "2024-01-09 21:30:06.141923"
+SESSION_ID = "2024-01-10 13:57:20.903919"
 RUN_ID = 1
+PLOT_ARROWS = False
+DEBUG = False
+INFO = True
 
 def main():
     plot_runs(
         query_from_influx(SESSION_ID, RUN_ID, BUCKET, MEASUREMENT)
     )
+
+def log_debug(msg):
+    if not DEBUG:
+        return
+    print(msg)
+
+def log_info(msg):
+    if not INFO:
+        return
+    print(msg)
 
 def query_from_influx(session_id, run_id, bucket="rbrtelemetry", measurement="RBR_RUN", lookback_window="-1w"):
     query = """from(bucket: "{bucket}")
@@ -35,12 +48,11 @@ def query_from_influx(session_id, run_id, bucket="rbrtelemetry", measurement="RB
         |> filter(fn: (r) => r["_measurement"] == "{measurement}")
         |> filter(fn: (r) => r["session_id"] == "{session_id}")
         |> filter(fn: (r) => r["stage.run"] == "{run_id}")
-        |> filter(fn: (r) => r["stage.run_attempt"] == "4")
-        |> filter(fn: (r) => r["_field"] == "car.position_x" or 
-                             r["_field"] == "car.position_y" or 
+        |> filter(fn: (r) => r["_field"] == "car.position_x" or
+                             r["_field"] == "car.position_y" or
                              r["_field"] == "car.position_z" or
-                             r["_field"] == "stage.distance_to_end" or 
-                             r["_field"] == "car.speed" or 
+                             r["_field"] == "stage.distance_to_end" or
+                             r["_field"] == "car.speed" or
                              r["_field"] == "stage.name" or
                              r["_field"] == "car.yaw")
         |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
@@ -52,7 +64,7 @@ def query_from_influx(session_id, run_id, bucket="rbrtelemetry", measurement="RB
             run_id=run_id,
         )
 
-    print(query)
+    log_debug(query)
     query_api = client.query_api()
     return query_api.query(org=org, query=query)
 
@@ -78,33 +90,33 @@ def plot_runs(results):
             if prev_record and not start_time and float(record['car.speed']) > 0:
                 if float(prev_record['stage.distance_to_end']) > record['stage.distance_to_end']:
                     start_time = prev_record['_time']
-                #    print("Stage Start Time: {}".format(start_time))
-                #else:
-                #    print("Ignoring speed wiggle")
-            
+                    log_debug("Stage Start Time: {}".format(start_time))
+                else:
+                    log_debug("Ignoring speed wiggle @ {}".format(record["_time"]))
+
             if not end_time and int(record['stage.distance_to_end']) <= 0:
                 end_time = record['_time']
-                #print("Stage End Time: {}".format(end_time))
-            
-            #print(record['stage.distance_to_end'])
-            x_vals.append(record['car.position_x'])
-            y_vals.append(record['car.position_y'])
-            z_vals.append(record['car.position_z'])
+                log_debug("Stage End Time: {}".format(end_time))
 
-            car_yaw = float(record["car.yaw"])
-            yaw_degrees = 360 - (180 + car_yaw)
-            yaw_vals.append(yaw_degrees)
+            if start_time or not(len(x_vals) or len(y_vals) or len(z_vals)):
+                x_vals.append(record['car.position_x'])
+                y_vals.append(record['car.position_y'])
+                z_vals.append(record['car.position_z'])
 
-            #print(yaw_degrees, record["car.yaw"], "tan(yaw): {}".format(math.tan(yaw_degrees)))
+                car_yaw = float(record["car.yaw"])
+                yaw_degrees = 360 - (180 + car_yaw)
+                yaw_vals.append(yaw_degrees)
+
+
             prev_record = record
 
         stage_time = end_time - start_time
         label = "Attempt {} ({})".format(record['stage.run_attempt'], stage_time)
         run_vals[label] = (x_vals, y_vals, z_vals, yaw_vals, record['stage.name'])
 
-        print("Stage: {}, Attempt: {}, Data Points: {}, Stage Time: {}".format(
+        log_info("Retrieved Stage: {}, Attempt: {}, Data Points: {}, Stage Time: {}".format(
                                                                     record['stage.name'],
-                                                                    record['stage.run_attempt'], 
+                                                                    record['stage.run_attempt'],
                                                                     points, stage_time))
 
 
@@ -122,37 +134,38 @@ def plot_runs(results):
         # Add the path
         ax.plot(vector_vals[0], vector_vals[1], linewidth=1.0, label = label)
         # Add begin and end markers
-        ax.plot(vector_vals[0][0], vector_vals[1][0], 
+        ax.plot(vector_vals[0][0], vector_vals[1][0],
                 markersize=5, marker="o", markerfacecolor="blue")
-        ax.plot(vector_vals[0][-1], vector_vals[1][-1], 
+        ax.plot(vector_vals[0][-1], vector_vals[1][-1],
                 markersize=5, marker="o", markerfacecolor="red")
 
-    x_tail = 0 
-    y_tail = 0
-    x_head = 1
-    y_head = 1
-    dx = x_head - x_tail
-    dy = y_head - y_tail
+    if PLOT_ARROWS:
+        x_tail = 0
+        y_tail = 0
+        x_head = 1
+        y_head = 1
+        dx = x_head - x_tail
+        dy = y_head - y_tail
 
-    print("Plotting Yaw Arrows")
-    #Add some yaw angle arrows
-    for label, vector_vals in run_vals.items():
-        counter = 0
-        for x, y, yaw_degrees in zip(vector_vals[0], vector_vals[1], vector_vals[3]):
-            if counter % 25 != 0:
-                counter += 1
-                continue #only every tenth value
-            else:
-                counter += 1
-            #print(x, y, yaw_data)
+        print("Plotting Yaw Arrows")
+        #Add some yaw angle arrows
+        for label, vector_vals in run_vals.items():
+            counter = 0
+            for x, y, yaw_degrees in zip(vector_vals[0], vector_vals[1], vector_vals[3]):
+                if counter % 20 != 0:
+                    counter += 1
+                    continue
+                else:
+                    counter += 1
 
-            #x_head = x + math.cos(yaw_degrees)
-            #y_head = y + math.sin(yaw_degrees)
+                yaw_radians = (3.145 * yaw_degrees) / 180
 
-            #print((yaw_degrees, (x, y), (x_head, y_head)))
-            #arrow = mpatches.FancyArrowPatch((x, y), (x_head, y_head),
-            #                                 mutation_scale=1)
-            #ax.add_patch(arrow)
+                x_head = x + (math.cos(yaw_radians) * 2)
+                y_head = y + (math.sin(yaw_radians) * 2)
+
+                arrow = mpatches.FancyArrowPatch((x, y), (x_head, y_head),
+                                                mutation_scale=5)
+                ax.add_patch(arrow)
 
 
     plt.subplots_adjust(top=0.97, bottom=0.03)
