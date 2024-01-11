@@ -1,3 +1,4 @@
+import click
 import influxdb_client
 import matplotlib.pyplot as plt
 from matplotlib import colormaps
@@ -17,32 +18,146 @@ client = influxdb_client.InfluxDBClient(
     org=org
 )
 
-MEASUREMENT = "RBR_RUN"
-BUCKET = "rbrtelemetry"
+measurement_ = "RBR_RUN"
+bucket = "rbrtelemetry"
+lookback_window = "-7d"
 
-SESSION_ID = "2024-01-09 21:30:06.141923"
-#SESSION_ID = "2024-01-10 13:57:20.903919"
-RUN_ID = 1
-PLOT_ARROWS = True
 DEBUG = False
 INFO = True
+  
 
-def main():
-    plot_runs(
-        process_run_results(
-            query_from_influx(SESSION_ID, RUN_ID, BUCKET, MEASUREMENT)
+@click.group()
+@click.option("--time-window", default="-7d", help="lookback window for queries")
+@click.option("--measurement", default=measurement_, help="Influx measurement to search under")
+def cli(time_window, measurement):
+    global lookback_window
+    global measurement_
+
+    measurement_ = measurement
+    lookback_window = time_window
+
+@cli.command()
+def list_sessions():
+    query = """from(bucket: "{bucket}")
+        |> range(start: {lookback_window})
+        |> keyValues(keyColumns: ["session_id"])
+        |> group()
+        |> unique(column: "_value")""".format(bucket=bucket,
+                                              lookback_window=lookback_window)
+
+    q_sessions = run_query(query, org)[0]
+
+    click.echo("Sessions in the current time window ({})".format(lookback_window))
+
+    for record in q_sessions.records:
+        click.echo(record['_value'])
+
+@cli.command()
+@click.argument("session_id")
+def list_runs(session_id):
+    query = """from(bucket: "{bucket}")
+        |> range(start: {lookback_window})
+        |> filter(fn: (r) => r["_measurement"] == "{measurement}")
+        |> filter(fn: (r) => r["session_id"] == "{session_id}")
+        |> keyValues(keyColumns: ["stage.run"])
+        |> group()
+        |> unique(column: "_value")""".format(bucket=bucket, 
+                                             lookback_window=lookback_window,
+                                             measurement=measurement_,
+                                             session_id=session_id)
+
+    q_runs = run_query(query, org)[0]
+
+    click.echo("Runs in session {} ({})".format(session_id, lookback_window))
+
+    for record in q_runs.records:
+        click.echo("{} -> {}".format(record['_value'], record["stage.name"]))
+
+@cli.command()
+@click.argument("session_id")
+@click.argument("run_id") 
+def list_run_attempts(session_id, run_id):
+    query = """from(bucket: "{bucket}")
+        |> range(start: {lookback_window})
+        |> filter(fn: (r) => r["_measurement"] == "{measurement}")
+        |> filter(fn: (r) => r["session_id"] == "{session_id}")
+        |> filter(fn: (r) => r["stage.run"] == "{run_id}")
+        |> keyValues(keyColumns: ["stage.run_attempt"])
+        |> group()
+        |> unique(column: "_value")""".format(bucket=bucket, 
+                                             lookback_window=lookback_window,
+                                             measurement=measurement_,
+                                             session_id=session_id,
+                                             run_id=run_id)
+
+    q_attempts = run_query(query, org)[0]
+
+    click.echo("Runs in session {} ({})".format(session_id, lookback_window))
+
+    for record in q_attempts.records:
+        click.echo(record['_value'])
+
+@cli.command()
+@click.argument("session_id")
+@click.argument("run_id")
+@click.option("--plot-yaw-arrows", 
+              is_flag=True, default=False, 
+              help="show yaw arrows on map (WARNING: Can be slow with more than one attempt)")
+@click.option("--attempt",
+              type=click.INT, multiple=True,
+              help="Show only this attempt. Command can be specified more than once")
+def plot_run(session_id, run_id, plot_yaw_arrows, attempt):
+    query = ""
+
+    query_base = """from(bucket: "{bucket}")
+        |> range(start: {lookback_window})
+        |> filter(fn: (r) => r["_measurement"] == "{measurement}")
+        |> filter(fn: (r) => r["session_id"] == "{session_id}")
+        |> filter(fn: (r) => r["stage.run"] == "{run_id}")""".format(
+            bucket=bucket,
+            lookback_window=lookback_window,
+            measurement=measurement_,
+            session_id=session_id,
+            run_id=run_id,
         )
+    
+    query += query_base
+
+    if attempt:
+        attempt_query = " or ".join(['r["stage.run_attempt"] == "{}"'.format(a) for a in attempt])
+        query += "\n" + (" " * 8) + "|> filter(fn: (r) => {})".format(attempt_query)
+
+    selected_values = """        
+        |> filter(fn: (r) => r["_field"] == "car.position_x" or
+                             r["_field"] == "car.position_y" or
+                             r["_field"] == "car.position_z" or
+                             r["_field"] == "stage.distance_to_end" or
+                             r["_field"] == "car.speed" or
+                             r["_field"] == "stage.name" or
+                             r["_field"] == "car.yaw")
+        |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+        |> group(columns: ["stage.run_attempt"])"""
+    
+    query += selected_values
+
+    plot_runs(
+        process_run_results(run_query(query, org)),
+        plot_yaw_arrows=plot_yaw_arrows
     )
+
+def run_query(query, org):
+    query_api = client.query_api()
+    return query_api.query(org=org, query=query)
 
 def log_debug(msg):
     if not DEBUG:
         return
-    print(msg)
+    click.echo(msg)
 
 def log_info(msg):
     if not INFO:
         return
-    print(msg)
+    click.echo(msg)
 
 def query_from_influx(session_id, run_id, bucket="rbrtelemetry", measurement="RBR_RUN", lookback_window="-1w"):
     query = """from(bucket: "{bucket}")
@@ -67,9 +182,7 @@ def query_from_influx(session_id, run_id, bucket="rbrtelemetry", measurement="RB
             run_id=run_id,
         )
 
-    log_debug(query)
-    query_api = client.query_api()
-    return query_api.query(org=org, query=query)
+    return run_query(query, org)
 
 def process_run_results(results):
     run_vals = defaultdict(list)
@@ -127,12 +240,12 @@ def process_run_results(results):
                                                                     max_speed))
     return run_vals
 
-def plot_runs(run_vals):
+def plot_runs(run_vals, plot_yaw_arrows=False):
     plt.style.use('_mpl-gallery')
     # plot
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10, 10))
 
-    print("Plotting Path")
+    click.echo("Plotting Path")
     # plot the paths
     ax.set_prop_cycle(color=colormaps["tab20"].colors)
     ax.set_aspect('equal', adjustable="box")
@@ -146,7 +259,7 @@ def plot_runs(run_vals):
         ax.plot(vector_vals[0][-1], vector_vals[1][-1],
                 markersize=5, marker="o", markerfacecolor="red")
 
-    if PLOT_ARROWS:
+    if plot_yaw_arrows:
         x_tail = 0
         y_tail = 0
         x_head = 1
@@ -154,12 +267,11 @@ def plot_runs(run_vals):
         dx = x_head - x_tail
         dy = y_head - y_tail
 
-        print("Plotting Yaw Arrows")
+        click.echo("Plotting Yaw Arrows")
         #Add some yaw angle arrows
         for label, vector_vals in run_vals.items():
             counter = 0
             max_speed = vector_vals[5]
-            print("max_speed: ", max_speed)
             for x, y, yaw_info in zip(vector_vals[0], vector_vals[1], vector_vals[3]):
                 if counter % 10 != 0:
                     counter += 1
@@ -167,12 +279,8 @@ def plot_runs(run_vals):
                 else:
                     counter += 1
 
-                yaw_degrees, car_speed = yaw_info
-
-                max_speed_pct = (0 if not car_speed else car_speed / max_speed) * 100
-
-                print("car_speed: ", car_speed, "max_speed_pct: ", max_speed_pct)
-                yaw_radians = (3.145 * yaw_degrees) / 180
+                yaw_degrees, _ = yaw_info
+                yaw_radians = (math.pi * yaw_degrees) / 180
 
                 x_head = x + (math.cos(yaw_radians) * 1)
                 y_head = y + (math.sin(yaw_radians) * 1)
@@ -188,5 +296,6 @@ def plot_runs(run_vals):
     plt.title(vector_vals[4])
     plt.show()
 
+
 if __name__ == "__main__":
-    main()
+    cli()
