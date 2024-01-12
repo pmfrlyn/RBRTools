@@ -10,21 +10,12 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib import colormaps
 
+from rbr_tools import configure_from_file
+from rbr_tools import rbr_tools_configuration as configuration
 
 client = None
 
 DEBUG = False
-
-configuration = {
-    "org": "example.com",
-    "token": "",
-    "url": "http://localhost:8086",
-    "measurement": "RBR_RUN",
-    "bucket": "rbrtelemetry",
-    "lookback_window": "-1d",
-    "arrow_scale": 1,
-    "arrow_density": 10
-}
 
 @click.group()
 @click.option("--time-window",
@@ -51,13 +42,8 @@ def cli(time_window, measurement, bucket, org, token, url, config_path):
     global client
 
     if os.path.exists(config_path): # aww, yis, configfile
-        config = configparser.ConfigParser()
-        config.read(config_path)
-        for section in ["influx", "search"]:
-            for key, val in config[section].items():
-                if key in configuration:
-                    configuration[key] = val
-
+        configure_from_file(config_path)
+        
     # override configuration parameters
     if time_window:
         configuration["lookback_window"] = time_window
@@ -78,6 +64,7 @@ def cli(time_window, measurement, bucket, org, token, url, config_path):
         org=configuration["org"]
     )
 
+
 @cli.command()
 def list_sessions():
     query = """from(bucket: "{bucket}")
@@ -92,6 +79,7 @@ def list_sessions():
 
     for record in q_sessions.records:
         click.echo(record['_value'])
+
 
 @cli.command()
 @click.argument("session_id")
@@ -112,6 +100,7 @@ def list_runs(session_id):
     for record in q_runs.records:
         click.echo("{} -> {}".format(record['_value'], record["stage.name"]))
 
+
 @cli.command()
 @click.argument("session_id")
 @click.argument("run_id")
@@ -122,6 +111,7 @@ def list_run_attempts(session_id, run_id):
     for ct, key in enumerate(run_results, 1):
         click.echo("{} -> {} {}".format(ct, run_results[key][-2],
                                         "(DNF)" if run_results[key][-1] else ""))
+
 
 @cli.command()
 @click.argument("session_id")
@@ -138,14 +128,17 @@ def plot_runs(session_id, run_id, plot_yaw_arrows, attempt):
         plot_yaw_arrows=plot_yaw_arrows
     )
 
+
 def run_query(query, org):
     query_api = client.query_api()
     return query_api.query(org=org, query=query)
+
 
 def log_debug(msg):
     if not DEBUG:
         return
     click.echo(msg)
+
 
 def get_attempts(session_id, run_id, attempts=None):
     query = ""
@@ -180,6 +173,7 @@ def get_attempts(session_id, run_id, attempts=None):
     query += selected_values
 
     return run_query(query, configuration["org"])
+
 
 def process_run_results(results):
     run_vals = defaultdict(list)
@@ -243,6 +237,7 @@ def process_run_results(results):
                                                                     points, stage_time,
                                                                     max_speed))
     return run_vals
+
 
 def display_runs(run_vals, plot_yaw_arrows=False):
     plt.style.use('_mpl-gallery')
