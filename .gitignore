@@ -5,3 +5,4 @@ dist
 *.spec
 __pycache__
 output.txt
+rbr_telemetry_tools/rbr_telemetry_tools/RBRTools.code-workspace
