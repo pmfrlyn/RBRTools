@@ -13,11 +13,12 @@ def configure_map_index(map_ini_file):
                        for s in config.sections()
                             if "Map" in s and "StageName" in config[s]})
     
-def read_rbr_telemetry(host, port):
-    sock = socket.socket(socket.AF_INET, # Internet
-                         socket.SOCK_DGRAM) # UDP
+
+def read_rbr_telemetry(host, port, timeout=0.25):
+    sock = socket.socket(socket.AF_INET,
+                         socket.SOCK_DGRAM)
     sock.bind((host, port))
-    sock.settimeout(0.25)
+    sock.settimeout(timeout)
 
     try:
         data, _ = sock.recvfrom(MESSAGE_LENGTH)
@@ -26,6 +27,7 @@ def read_rbr_telemetry(host, port):
     finally:
         sock.close()
         return data
+  
     
 def process_telemetry_packet(data, unit=None):
     point = {}
