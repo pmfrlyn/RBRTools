@@ -1,8 +1,10 @@
 ENV
+ENV_TEST
 build
 dist
 *.basespec
 *.spec
 __pycache__
 output.txt
+*.egg-info
 rbr_telemetry_tools/rbr_telemetry_tools/RBRTools.code-workspace
