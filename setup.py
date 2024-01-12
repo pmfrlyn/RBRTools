@@ -10,6 +10,8 @@ setup(
         'influxdb-client',
         'matplotlib',
         'click',
+        'async-timeout',
+        'aiohttp',
     ],
     entry_points={
         'console_scripts': [

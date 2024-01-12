@@ -106,7 +106,7 @@ def list_runs(session_id):
 @click.argument("run_id")
 def list_run_attempts(session_id, run_id):
     run_results = process_run_results(get_attempts(session_id, run_id))
-    click.echo("Runs in session {} ({})".format(session_id, configuration["lookback_window"]))
+    click.echo("Attempts in Run {} ({})".format(run_id, configuration["lookback_window"]))
 
     for ct, key in enumerate(run_results, 1):
         click.echo("{} -> {} {}".format(ct, run_results[key][-2],
@@ -122,7 +122,7 @@ def list_run_attempts(session_id, run_id):
 @click.option("--attempt",
               type=click.INT, multiple=True,
               help="Show only this attempt. Command can be specified more than once")
-def plot_runs(session_id, run_id, plot_yaw_arrows, attempt):
+def plot_attempts(session_id, run_id, plot_yaw_arrows, attempt):
     display_runs(
         process_run_results(get_attempts(session_id, run_id, attempt)),
         plot_yaw_arrows=plot_yaw_arrows

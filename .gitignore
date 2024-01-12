@@ -1,5 +1,4 @@
-ENV
-ENV_TEST
+ENV*
 build
 dist
 *.basespec

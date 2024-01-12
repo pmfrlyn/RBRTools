@@ -2,3 +2,5 @@ pyparsing
 influxdb-client
 matplotlib
 click
+aiohttp
+async-timeout
