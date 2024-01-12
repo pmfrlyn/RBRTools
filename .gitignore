@@ -7,4 +7,5 @@ dist
 __pycache__
 output.txt
 *.egg-info
+*.code-workspace
 rbr_telemetry_tools/rbr_telemetry_tools/RBRTools.code-workspace
