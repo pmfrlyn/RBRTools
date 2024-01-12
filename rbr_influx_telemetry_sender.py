@@ -1,33 +1,20 @@
-import datetime
 import asyncio
 import async_timeout
-import socket
+import datetime
+import os.path
 
+import click
+import influxdb_client
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 
-import influxdb_client
-
-
+from rbr_tools import configure_from_file
+from rbr_tools import rbr_tools_configuration as configuration
 from rbr_tools.telemetry import (
-    MESSAGE_LENGTH, MAPS_INDEX,
+    MAPS_INDEX,
     read_rbr_telemetry,
     process_telemetry_packet, 
     configure_map_index)
 
-RBR_INSTALL_LOCATION = "D:\\Richard Burns Rally"
-RBR_MAPS_INI = RBR_INSTALL_LOCATION + "\\Maps\\tracks.ini"
-
-bucket = "rbrtelemetry"
-org = "klaw.cloud"
-token = "S4PaTHipGiQudzeyh7hMNQTR4t9-fgrsl0gjWATUn2FKf7cFhMsLJJvAjs0rd3jriIfu2ng5lvPH87Dhcl_izw=="
-url = "http://telemetry.klaw.cloud:8086"
-
-driver = "spots"
-
-UDP_IP = "10.0.0.30"
-UDP_PORT = 6776
-
-start_time = datetime.datetime.now()
 current_stage = None
 current_total_steps = None
 stage_run = 1
@@ -39,9 +26,100 @@ paused_total_steps = None
 
 session_tag = str(datetime.datetime.now())
 
-configure_map_index(RBR_MAPS_INI)
+@click.command()
+@click.option("--driver",
+    help="Driver to tag this telemetry under")
+@click.option("--measurement",
+    help="Influx measurement to search under")
+@click.option("--bucket",
+    envvar="RBR_TELEMETRY_INFLUX_BUCKET",
+    help="InfluxDB bucket to search")
+@click.option("--org",
+    envvar="RBR_TELEMETRY_INFLUX_ORG",
+    help="InfluxDB Org to query")
+@click.option("--token",
+    envvar="RBR_TELEMETRY_INFLUX_TOKEN",
+    help="InfluxDB API token")
+@click.option("--url",
+    envvar="RBR_TELEMETRY_INFLUX_URL",
+    help="InfluxDB URL")
+@click.option("--host",
+    envvar="RBR_TELEMETRY_HOST",
+    help="Telemetry host")
+@click.option("--port",
+    envvar="RBR_TELEMETRY_PORT",
+    help="Telemetry port")
+@click.option("--config_path",
+    envvar="RBR_TELEMETRY_CONFIG",
+    default=configuration["config_path"],
+    type=click.Path(exists=False),
+    help="Configuration file for the rbr_tools package")
+@click.option("--maps_ini_path",
+    envvar="RBR_TELEMETRY_TRACKS_INI",
+    default=configuration["maps_ini_path"],
+    type=click.Path(exists=False),
+    help="Location of your Tracks.ini file")
+def cli(driver, measurement, bucket, org, token, url, host, port, config_path, maps_ini_path):
+    global client
+
+    if os.path.exists(config_path): # aww, yis, configfile
+        click.echo("Loading Configuration: {}".format(config_path))
+        configure_from_file(config_path)
+
+    # override configuration parameters
+    if maps_ini_path:
+        configuration["maps_ini_path"] = maps_ini_path
+    if driver:
+        configuration["driver"] = driver
+    if measurement:
+        configuration["measurement"] = measurement
+    if bucket:
+        configuration["bucket"] = bucket
+    if org:
+        configuration["org"] = org
+    if token:
+        configuration["token"] = token
+    if url:
+        configuration["url"] = url
+    if host:
+        configuration["rbr_telemetry_host"] = host
+    if port:
+        configuration["rbr_telemetry_port"] = port
+
+    if os.path.exists(configuration['maps_ini_path']):
+        click.echo("Loading Maps Configuration: {}".format(configuration['maps_ini_path']))
+        configure_map_index(maps_ini_path)
+
+    asyncio.run(main())
+
+async def main():
+    click.echo("RBR Influx Telemetry Sender ({})".format(session_tag))
+    data_queue = asyncio.Queue()
+    loop = asyncio.get_event_loop()
+    running = loop.create_future()
+
+    try:
+        while True:
+            await rbr_telemetry_get(
+                configuration['rbr_telemetry_host'],
+                int(configuration['rbr_telemetry_port']),
+                data_queue)
+            await rbr_telemetry_send(data_queue)
+    except KeyboardInterrupt:
+        running.set_result(False)
+
+    try:
+        await running
+    finally:
+        loop.stop()
+
 
 async def rbr_telemetry_send(data_queue: asyncio.Queue):
+    url = configuration["url"]
+    token = configuration["token"]
+    org = configuration["org"]
+    driver = configuration["driver"]
+
     try:
         async with async_timeout.timeout(1):
             point = await data_queue.get()
@@ -70,6 +148,7 @@ async def rbr_telemetry_send(data_queue: asyncio.Queue):
     
         await write_api.write(bucket="rbrtelemetry", record=influx_point)
 
+
 async def rbr_telemetry_get(host, port, data_queue: asyncio.Queue):
     global current_stage
     global current_total_steps
@@ -95,11 +174,11 @@ async def rbr_telemetry_get(host, port, data_queue: asyncio.Queue):
             pause_announced = False
 
             if paused_stage == current_stage and paused_total_steps > current_total_steps:
-                print("Stage Restart!")
+                click.echo("Stage Restart!")
                 new_stage = True
                 stage_run_attempt += 1
             elif paused_stage == current_stage and paused_total_steps <= current_total_steps:
-                print("Resuming From Pause")
+                click.echo("Resuming From Pause")
             elif paused_stage != current_stage:
                 new_stage = True
                 stage_run += 1
@@ -108,7 +187,7 @@ async def rbr_telemetry_get(host, port, data_queue: asyncio.Queue):
             paused_stage = paused_total_steps = None
 
         if new_stage:
-            print("Starting Stage - SS: {}, Run: {}, Attempt: {}".format("{} ({})".format(
+            click.echo("Starting Stage - SS: {}, Run: {}, Attempt: {}".format("{} ({})".format(
                 MAPS_INDEX.get(current_stage, current_stage), current_stage), stage_run, stage_run_attempt))
 
         await data_queue.put(point)
@@ -118,27 +197,8 @@ async def rbr_telemetry_get(host, port, data_queue: asyncio.Queue):
             paused_total_steps = current_total_steps
         else:
             if not pause_announced:
-                print("Paused - SS: {}, Steps: {}".format("{} ({})".format(MAPS_INDEX.get(paused_stage, paused_stage), paused_stage), paused_total_steps))
+                click.echo("Paused - SS: {}, Steps: {}".format("{} ({})".format(MAPS_INDEX.get(paused_stage, paused_stage), paused_stage), paused_total_steps))
                 pause_announced = True
 
-
-async def main():
-    print("RBR Influx Telemetry Sender ({})".format(session_tag))
-    data_queue = asyncio.Queue()
-    loop = asyncio.get_event_loop()
-    running = loop.create_future()
-
-    try:
-        while True:
-            await rbr_telemetry_get(UDP_IP, UDP_PORT, data_queue)
-            await rbr_telemetry_send(data_queue)
-    except KeyboardInterrupt:
-        running.set_result(False)
-
-    try:
-        await running
-    finally:
-        loop.stop()
-
-
-asyncio.run(main())
+if __name__ == "__main__":
+    cli()
