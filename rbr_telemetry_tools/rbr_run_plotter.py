@@ -22,7 +22,8 @@ configuration = {
     "measurement": "RBR_RUN",
     "bucket": "rbrtelemetry",
     "lookback_window": "-7d",
-    "arrow_scale": 1
+    "arrow_scale": 1,
+    "arrow_density": 10
 }
 
 @click.group()
@@ -276,7 +277,7 @@ def display_runs(run_vals, plot_yaw_arrows=False):
             counter = 0
             max_speed = vector_vals[5]
             for x, y, yaw_info in zip(vector_vals[0], vector_vals[1], vector_vals[3]):
-                if counter % 10 != 0:
+                if counter % configuration["arrow_density"] != 0:
                     counter += 1
                     continue
                 else:
