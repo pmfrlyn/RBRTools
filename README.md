@@ -24,7 +24,7 @@ $ pip install .
  
 The rbr_tools package can be configured via an ini file, by default located in $HOMEDIR/.rbr_tools.cfg and makes using the telemetry related tools much more pleasant. An example file is shown below, and one is also included in the samples/ directory. 
  
- 
+```
 [general] 
 driver = H. Helperton 
 measurement = RBR_RUN 
@@ -42,7 +42,7 @@ token = ohyouthoughtiwasgonnagiveyouarealtoken==
  
 [search] 
 lookback_window = -3d ;change this value to widen or narrow your search window (bigger is slower) 
- 
+```
  
 I recommend you create a config file to save you from typing out a bunch of command line options every single time. 
  
