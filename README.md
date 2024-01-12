@@ -8,6 +8,18 @@ This package contains a few tools that I have written for the Richard Burns Rall
 
 The `rbr_tools` python package itself contains libraries to let you compare setups, retrive telemetry data, as well as process the telemetry packets.
 
+## Installation
+
+This package is not available through PyPI, but can be easily installed by downloading the package and then using `setuptools`.
+
+Below is an example of how to install it into a new virtual environment.
+
+```
+$ cd path\to\RBRTools
+$ python -m venv ENV
+$ pip install .
+```
+
 ## Configuration
 
 The `rbr_tools` package can be configured via an ini file, by default located in `$HOMEDIR/.rbr_tools.cfg` and makes using the telemetry related tools much more pleasant. An example file is shown below, and one is also included in the `samples/` directory.
@@ -30,16 +42,4 @@ token = ohyouthoughtiwasgonnagiveyouarealtoken==
 [search]
 bucket = rbrtelemetry
 lookback_window = -3d
-```
-
-## Installation
-
-This package is not available through PyPI, but can be easily installed by downloading the package and then using `setuptools`.
-
-Below is an example of how to install it into a new virtual environment.
-
-```
-$ cd path\to\RBRTools
-$ python -m venv ENV
-$ pip install .
 ```

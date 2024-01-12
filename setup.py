@@ -9,7 +9,7 @@ setup(
         'pyparsing',
         'influxdb-client',
         'matplotlib',
-        'click'
+        'click',
     ],
     entry_points={
         'console_scripts': [
