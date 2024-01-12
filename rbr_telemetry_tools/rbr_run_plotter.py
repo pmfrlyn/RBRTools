@@ -21,7 +21,7 @@ configuration = {
     "url": "http://localhost:8086",
     "measurement": "RBR_RUN",
     "bucket": "rbrtelemetry",
-    "lookback_window": "-7d",
+    "lookback_window": "-1d",
     "arrow_scale": 1,
     "arrow_density": 10
 }
@@ -58,7 +58,7 @@ def cli(time_window, measurement, bucket, org, token, url, config_path):
                 if key in configuration:
                     configuration[key] = val
 
-    # use or override configuration parameters
+    # override configuration parameters
     if time_window:
         configuration["lookback_window"] = time_window
     if measurement:
