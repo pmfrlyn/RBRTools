@@ -4,7 +4,6 @@ from collections import defaultdict
 
 from rbr_tools.setups import parse_lsp_file
 
-
 def main(): 
     if len(sys.argv) != 3:
         print("Usage rbr_setup_compare.py file1 file2")
