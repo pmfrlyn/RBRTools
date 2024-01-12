@@ -1,4 +1,4 @@
-# RBR Tools
+# Spots' RBR Tools
 
 This package contains a few tools that I have written for the Richard Burns Rally simulator software. The package contains three main tools:
 
