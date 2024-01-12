@@ -2,14 +2,14 @@ import configparser
 import math
 import os.path
 import pathlib
+from collections import defaultdict
 
 import click
 import influxdb_client
 import matplotlib.pyplot as plt
-from matplotlib import colormaps
 import matplotlib.patches as mpatches
+from matplotlib import colormaps
 
-from collections import defaultdict
 
 client = None
 
@@ -45,7 +45,7 @@ configuration = {
     help="InfluxDB URL")
 @click.option("--config_path",
     envvar="RBR_TELEMETRY_CONFIG",
-    default=os.path.join(pathlib.Path.home(), ".rbr_telemetry.cfg"),
+    default=os.path.join(pathlib.Path.home(), ".rbr_tools.cfg"),
     type=click.Path(exists=False))
 def cli(time_window, measurement, bucket, org, token, url, config_path):
     global client
