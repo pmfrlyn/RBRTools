@@ -14,7 +14,6 @@ from collections import defaultdict
 client = None
 
 DEBUG = False
-INFO = True
 
 configuration = {
     "org": "example.com",
@@ -22,7 +21,8 @@ configuration = {
     "url": "http://localhost:8086",
     "measurement": "RBR_RUN",
     "bucket": "rbrtelemetry",
-    "lookback_window": "-7d"
+    "lookback_window": "-7d",
+    "arrow_scale": 1
 }
 
 @click.group()
@@ -146,11 +146,6 @@ def log_debug(msg):
         return
     click.echo(msg)
 
-def log_info(msg):
-    if not INFO:
-        return
-    click.echo(msg)
-
 def get_attempts(session_id, run_id, attempts=None):
     query = ""
 
@@ -236,8 +231,10 @@ def process_run_results(results):
             dnf = True
 
         stage_time = end_time - start_time
-        label = "Attempt {} ({}){}".format(record['stage.run_attempt'], stage_time, " DNF" if dnf else "")
-        run_vals[label] = (x_vals, y_vals, z_vals, yaw_vals, record['stage.name'], max_speed, stage_time, dnf)
+        label = "Attempt {} ({}){}".format(record['stage.run_attempt'], stage_time,
+                                           " DNF" if dnf else "")
+        run_vals[label] = (x_vals, y_vals, z_vals, yaw_vals, record['stage.name'],
+                           max_speed, stage_time, dnf)
 
         log_debug("Retrieved Stage: {}, Attempt: {}, Data Points: {}, Stage Time: {}, Max Speed: {}".format(
                                                                     record['stage.name'],
@@ -288,8 +285,8 @@ def display_runs(run_vals, plot_yaw_arrows=False):
                 yaw_degrees, _ = yaw_info
                 yaw_radians = (math.pi * yaw_degrees) / 180
 
-                x_head = x + (math.cos(yaw_radians) * 1)
-                y_head = y + (math.sin(yaw_radians) * 1)
+                x_head = x + (math.cos(yaw_radians) * configuration["arrow_scale"])
+                y_head = y + (math.sin(yaw_radians) * configuration["arrow_scale"])
 
                 arrow = mpatches.FancyArrowPatch((x, y), (x_head, y_head),
                                                  mutation_scale=5,
