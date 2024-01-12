@@ -1,40 +1,81 @@
+import configparser
+import math
+import os.path
+import pathlib
+
 import click
 import influxdb_client
 import matplotlib.pyplot as plt
 from matplotlib import colormaps
 import matplotlib.patches as mpatches
-import math
 
 from collections import defaultdict
 
-bucket = "rbrtelemetry"
-org = "klaw.cloud"
-token = "S4PaTHipGiQudzeyh7hMNQTR4t9-fgrsl0gjWATUn2FKf7cFhMsLJJvAjs0rd3jriIfu2ng5lvPH87Dhcl_izw=="
-url = "http://telemetry.klaw.cloud:8086"
-
-client = influxdb_client.InfluxDBClient(
-    url=url,
-    token=token,
-    org=org
-)
-
-measurement_ = "RBR_RUN"
-bucket = "rbrtelemetry"
-lookback_window = "-7d"
+client = None
 
 DEBUG = False
 INFO = True
-  
+
+configuration = {
+    "org": "example.com",
+    "token": "",
+    "url": "http://localhost:8086",
+    "measurement": "RBR_RUN",
+    "bucket": "rbrtelemetry",
+    "lookback_window": "-7d"
+}
 
 @click.group()
-@click.option("--time-window", default="-7d", help="lookback window for queries")
-@click.option("--measurement", default=measurement_, help="Influx measurement to search under")
-def cli(time_window, measurement):
-    global lookback_window
-    global measurement_
+@click.option("--time-window",
+    help="lookback window for queries")
+@click.option("--measurement",
+    help="Influx measurement to search under")
+@click.option("--bucket",
+    envvar="RBR_TELEMETRY_INFLUX_BUCKET",
+    help="InfluxDB bucket to search")
+@click.option("--org",
+    envvar="RBR_TELEMETRY_INFLUX_ORG",
+    help="InfluxDB Org to query")
+@click.option("--token",
+    envvar="RBR_TELEMETRY_INFLUX_TOKEN",
+    help="InfluxDB API token")
+@click.option("--url",
+    envvar="RBR_TELEMETRY_INFLUX_URL",
+    help="InfluxDB URL")
+@click.option("--config_path",
+    envvar="RBR_TELEMETRY_CONFIG",
+    default=os.path.join(pathlib.Path.home(), ".rbr_telemetry.cfg"),
+    type=click.Path(exists=False))
+def cli(time_window, measurement, bucket, org, token, url, config_path):
+    global client
 
-    measurement_ = measurement
-    lookback_window = time_window
+    if os.path.exists(config_path): # aww, yis, configfile
+        config = configparser.ConfigParser()
+        config.read(config_path)
+        for section in ["influx", "search"]:
+            for key, val in config[section].items():
+                if key in configuration:
+                    configuration[key] = val
+
+    # use or override configuration parameters
+    if time_window:
+        configuration["lookback_window"] = time_window
+    if measurement:
+        configuration["measurement"] = measurement
+    if bucket:
+        configuration["bucket"] = bucket
+    if org:
+        configuration["org"] = org
+    if token:
+        configuration["token"] = token
+    if url:
+        configuration["url"] = url
+
+    client = influxdb_client.InfluxDBClient(
+        url=configuration["url"],
+        token=configuration["token"],
+        org=configuration["org"]
+    )
 
 @cli.command()
 def list_sessions():
@@ -42,12 +83,11 @@ def list_sessions():
         |> range(start: {lookback_window})
         |> keyValues(keyColumns: ["session_id"])
         |> group()
-        |> unique(column: "_value")""".format(bucket=bucket,
-                                              lookback_window=lookback_window)
+        |> unique(column: "_value")""".format(**configuration)
 
-    q_sessions = run_query(query, org)[0]
+    q_sessions = run_query(query, configuration["org"])[0]
 
-    click.echo("Sessions in the current time window ({})".format(lookback_window))
+    click.echo("Sessions in the current time window ({})".format(configuration["lookback_window"]))
 
     for record in q_sessions.records:
         click.echo(record['_value'])
@@ -61,87 +101,39 @@ def list_runs(session_id):
         |> filter(fn: (r) => r["session_id"] == "{session_id}")
         |> keyValues(keyColumns: ["stage.run"])
         |> group()
-        |> unique(column: "_value")""".format(bucket=bucket, 
-                                             lookback_window=lookback_window,
-                                             measurement=measurement_,
-                                             session_id=session_id)
+        |> unique(column: "_value")""".format(session_id=session_id,
+                                              **configuration)
 
-    q_runs = run_query(query, org)[0]
+    q_runs = run_query(query, configuration["org"])[0]
 
-    click.echo("Runs in session {} ({})".format(session_id, lookback_window))
+    click.echo("Runs in session {} ({})".format(session_id, configuration["lookback_window"]))
 
     for record in q_runs.records:
         click.echo("{} -> {}".format(record['_value'], record["stage.name"]))
 
 @cli.command()
 @click.argument("session_id")
-@click.argument("run_id") 
+@click.argument("run_id")
 def list_run_attempts(session_id, run_id):
-    query = """from(bucket: "{bucket}")
-        |> range(start: {lookback_window})
-        |> filter(fn: (r) => r["_measurement"] == "{measurement}")
-        |> filter(fn: (r) => r["session_id"] == "{session_id}")
-        |> filter(fn: (r) => r["stage.run"] == "{run_id}")
-        |> keyValues(keyColumns: ["stage.run_attempt"])
-        |> group()
-        |> unique(column: "_value")""".format(bucket=bucket, 
-                                             lookback_window=lookback_window,
-                                             measurement=measurement_,
-                                             session_id=session_id,
-                                             run_id=run_id)
+    run_results = process_run_results(get_attempts(session_id, run_id))
+    click.echo("Runs in session {} ({})".format(session_id, configuration["lookback_window"]))
 
-    q_attempts = run_query(query, org)[0]
-
-    click.echo("Runs in session {} ({})".format(session_id, lookback_window))
-
-    for record in q_attempts.records:
-        click.echo(record['_value'])
+    for ct, key in enumerate(run_results, 1):
+        click.echo("{} -> {} {}".format(ct, run_results[key][-2],
+                                        "(DNF)" if run_results[key][-1] else ""))
 
 @cli.command()
 @click.argument("session_id")
 @click.argument("run_id")
-@click.option("--plot-yaw-arrows", 
-              is_flag=True, default=False, 
+@click.option("--plot-yaw-arrows",
+              is_flag=True, default=False,
               help="show yaw arrows on map (WARNING: Can be slow with more than one attempt)")
 @click.option("--attempt",
               type=click.INT, multiple=True,
               help="Show only this attempt. Command can be specified more than once")
-def plot_run(session_id, run_id, plot_yaw_arrows, attempt):
-    query = ""
-
-    query_base = """from(bucket: "{bucket}")
-        |> range(start: {lookback_window})
-        |> filter(fn: (r) => r["_measurement"] == "{measurement}")
-        |> filter(fn: (r) => r["session_id"] == "{session_id}")
-        |> filter(fn: (r) => r["stage.run"] == "{run_id}")""".format(
-            bucket=bucket,
-            lookback_window=lookback_window,
-            measurement=measurement_,
-            session_id=session_id,
-            run_id=run_id,
-        )
-    
-    query += query_base
-
-    if attempt:
-        attempt_query = " or ".join(['r["stage.run_attempt"] == "{}"'.format(a) for a in attempt])
-        query += "\n" + (" " * 8) + "|> filter(fn: (r) => {})".format(attempt_query)
-
-    selected_values = """        
-        |> filter(fn: (r) => r["_field"] == "car.position_x" or
-                             r["_field"] == "car.position_y" or
-                             r["_field"] == "car.position_z" or
-                             r["_field"] == "stage.distance_to_end" or
-                             r["_field"] == "car.speed" or
-                             r["_field"] == "stage.name" or
-                             r["_field"] == "car.yaw")
-        |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
-        |> group(columns: ["stage.run_attempt"])"""
-    
-    query += selected_values
-
-    plot_runs(
-        process_run_results(run_query(query, org)),
+def plot_runs(session_id, run_id, plot_yaw_arrows, attempt):
+    display_runs(
+        process_run_results(get_attempts(session_id, run_id, attempt)),
         plot_yaw_arrows=plot_yaw_arrows
     )
 
@@ -159,13 +151,26 @@ def log_info(msg):
         return
     click.echo(msg)
 
-def query_from_influx(session_id, run_id, bucket="rbrtelemetry", measurement="RBR_RUN", lookback_window="-1w"):
-    query = """from(bucket: "{bucket}")
+def get_attempts(session_id, run_id, attempts=None):
+    query = ""
+
+    query_base = """from(bucket: "{bucket}")
         |> range(start: {lookback_window})
         |> filter(fn: (r) => r["_measurement"] == "{measurement}")
         |> filter(fn: (r) => r["session_id"] == "{session_id}")
-        |> filter(fn: (r) => r["stage.run"] == "{run_id}")
-        |> filter(fn: (r) => r["stage.run_attempt"] == "2")
+        |> filter(fn: (r) => r["stage.run"] == "{run_id}")""".format(
+            session_id=session_id,
+            run_id=run_id,
+            **configuration
+        )
+
+    query += query_base
+
+    if attempts:
+        attempt_query = " or ".join(['r["stage.run_attempt"] == "{}"'.format(a) for a in attempts])
+        query += "\n" + (" " * 8) + "|> filter(fn: (r) => {})".format(attempt_query)
+
+    selected_values = """
         |> filter(fn: (r) => r["_field"] == "car.position_x" or
                              r["_field"] == "car.position_y" or
                              r["_field"] == "car.position_z" or
@@ -174,15 +179,11 @@ def query_from_influx(session_id, run_id, bucket="rbrtelemetry", measurement="RB
                              r["_field"] == "stage.name" or
                              r["_field"] == "car.yaw")
         |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
-        |> group(columns: ["stage.run_attempt"])""".format(
-            bucket=bucket,
-            lookback_window=lookback_window,
-            measurement=measurement,
-            session_id=session_id,
-            run_id=run_id,
-        )
+        |> group(columns: ["stage.run_attempt"])"""
 
-    return run_query(query, org)
+    query += selected_values
+
+    return run_query(query, configuration["org"])
 
 def process_run_results(results):
     run_vals = defaultdict(list)
@@ -229,18 +230,23 @@ def process_run_results(results):
 
             prev_record = record
 
-        stage_time = end_time - start_time
-        label = "Attempt {} ({})".format(record['stage.run_attempt'], stage_time)
-        run_vals[label] = (x_vals, y_vals, z_vals, yaw_vals, record['stage.name'], max_speed)
+        dnf = False
+        if not end_time: # whoa cowboy, we didn't finish that run did we?
+            end_time = record["_time"] # nab the last record in the scope
+            dnf = True
 
-        log_info("Retrieved Stage: {}, Attempt: {}, Data Points: {}, Stage Time: {}, Max Speed: {}".format(
+        stage_time = end_time - start_time
+        label = "Attempt {} ({}){}".format(record['stage.run_attempt'], stage_time, " DNF" if dnf else "")
+        run_vals[label] = (x_vals, y_vals, z_vals, yaw_vals, record['stage.name'], max_speed, stage_time, dnf)
+
+        log_debug("Retrieved Stage: {}, Attempt: {}, Data Points: {}, Stage Time: {}, Max Speed: {}".format(
                                                                     record['stage.name'],
                                                                     record['stage.run_attempt'],
                                                                     points, stage_time,
                                                                     max_speed))
     return run_vals
 
-def plot_runs(run_vals, plot_yaw_arrows=False):
+def display_runs(run_vals, plot_yaw_arrows=False):
     plt.style.use('_mpl-gallery')
     # plot
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -290,8 +296,7 @@ def plot_runs(run_vals, plot_yaw_arrows=False):
                                                  arrowstyle="simple")
                 ax.add_patch(arrow)
 
-
-    plt.subplots_adjust(top=0.97, bottom=0.03)
+    plt.subplots_adjust(top=0.97, bottom=0.03, left=0.05, right=0.95)
     plt.legend()
     plt.title(vector_vals[4])
     plt.show()
