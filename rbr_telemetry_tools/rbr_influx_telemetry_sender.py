@@ -10,7 +10,9 @@ import influxdb_client
 
 from rbr_telemetry_tools import (
     MESSAGE_LENGTH, MAPS_INDEX,
-    process_telemetry_packet, configure_map_index)
+    read_rbr_telemetry,
+    process_telemetry_packet, 
+    configure_map_index)
 
 RBR_INSTALL_LOCATION = "D:\\Richard Burns Rally"
 RBR_MAPS_INI = RBR_INSTALL_LOCATION + "\\Maps\\tracks.ini"
@@ -68,22 +70,7 @@ async def rbr_telemetry_send(data_queue: asyncio.Queue):
     
         await write_api.write(bucket="rbrtelemetry", record=influx_point)
 
-def read_rbr_telemetry(host, port):
-    sock = socket.socket(socket.AF_INET, # Internet
-                         socket.SOCK_DGRAM) # UDP
-    sock.bind((UDP_IP, UDP_PORT))
-    sock.settimeout(0.25)
-
-    try:
-        data, _ = sock.recvfrom(MESSAGE_LENGTH)
-    except socket.timeout:
-        data = None
-    finally:
-        sock.close()
-        return data
-    
-
-async def rbr_telemetry_client(host, port, data_queue: asyncio.Queue):
+async def rbr_telemetry_get(host, port, data_queue: asyncio.Queue):
     global current_stage
     global current_total_steps
     global paused_stage
@@ -143,7 +130,7 @@ async def main():
 
     try:
         while True:
-            await rbr_telemetry_client(UDP_IP, UDP_PORT, data_queue)
+            await rbr_telemetry_get(UDP_IP, UDP_PORT, data_queue)
             await rbr_telemetry_send(data_queue)
     except KeyboardInterrupt:
         running.set_result(False)
