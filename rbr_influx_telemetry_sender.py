@@ -8,7 +8,7 @@ from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 import influxdb_client
 
 
-from rbr_telemetry_tools import (
+from rbr_tools.telemetry import (
     MESSAGE_LENGTH, MAPS_INDEX,
     read_rbr_telemetry,
     process_telemetry_packet, 

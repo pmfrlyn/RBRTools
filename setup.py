@@ -1,10 +1,10 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='rbr_telemetry_tools',
+    name='rbr_tools',
     version='0.1.0',
     packages=find_packages(),
-    py_modules=['rbr_run_plotter', 'rbr_influx_telemetry_sender'],
+    py_modules=['rbr_run_plotter', 'rbr_influx_telemetry_sender', 'rbr_setup_compare'],
     install_requires=[
         'pyparsing',
         'influxdb-client',
