@@ -14,11 +14,11 @@ This package is not available through PyPI, but can be easily installed by downl
 
 Below is an example of how to install it into a new virtual environment.
 
-
+```
 $ cd path\to\RBRTools
 $ python -m venv ENV
 $ pip install .
-
+```
 
 ## Configuration
 
@@ -116,6 +116,7 @@ Sessions in the current time window (-2d)
 2024-01-11 15:24:43.355697
 2024-01-12 11:50:22.618175
 ```
+
 `list-runs` shows you how many different runs you did during the selected session. The number before the stage name is the ID for that set of attempts.
 
 ```
