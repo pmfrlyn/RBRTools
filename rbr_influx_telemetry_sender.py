@@ -88,8 +88,8 @@ def cli(driver, measurement, bucket, org, token, url, host, port, config_path, m
 
     if os.path.exists(configuration['maps_ini_path']):
         click.echo("Loading Maps Configuration: {}".format(configuration['maps_ini_path']))
-        configure_map_index(maps_ini_path)
-
+        configure_map_index(configuration['maps_ini_path'])
+        
     asyncio.run(main())
 
 async def main():
