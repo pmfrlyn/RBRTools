@@ -1,8 +1,10 @@
 import configparser
+import datetime
 import math
 import os.path
 import pathlib
 from collections import defaultdict
+from dataclasses import dataclass
 
 import click
 import influxdb_client
@@ -16,6 +18,22 @@ from rbr_tools import rbr_tools_configuration as configuration
 client = None
 
 DEBUG = False
+
+@dataclass
+class Run:
+    stage_name: str
+    stage_time: datetime.timedelta
+    dnf: bool
+    x_vals: list
+    y_vals: list
+    z_vals: list
+    yaw_vals: list
+    speed_vals: list
+
+    @property
+    def max_speed(self) -> float:
+        return max(self.speed_vals)
+
 
 @click.group()
 @click.option("--time-window",
@@ -176,13 +194,14 @@ def get_attempts(session_id, run_id, attempts=None):
 
 
 def process_run_results(results):
-    run_vals = defaultdict(list)
+    runs = dict()
 
     for plot_table in results:
         # positional values
         x_vals = []
         y_vals = []
         z_vals = []
+        speed_vals = []
         yaw_vals = []
 
         #time determination
@@ -190,7 +209,6 @@ def process_run_results(results):
         end_time = None
         prev_record = None
         points = 0
-        max_speed = 0
 
         for record in plot_table.records:
             points += 1
@@ -210,13 +228,11 @@ def process_run_results(results):
                 x_vals.append(record['car.position_x'])
                 y_vals.append(record['car.position_y'])
                 z_vals.append(record['car.position_z'])
+                speed_vals.append(record['car.speed'])
 
                 car_yaw = float(record["car.yaw"])
                 yaw_degrees = 360 - (180 + car_yaw)
                 yaw_vals.append((yaw_degrees, float(record["car.speed"])))
-
-                if float(record['car.speed']) > max_speed:
-                    max_speed = float(record['car.speed'])
 
             prev_record = record
 
@@ -225,21 +241,34 @@ def process_run_results(results):
             end_time = record["_time"] # nab the last record in the scope
             dnf = True
 
+        if not start_time:
+            start_time = end_time
+            dnf = True
+
         stage_time = end_time - start_time
         label = "Attempt {} ({}){}".format(record['stage.run_attempt'], stage_time,
                                            " DNF" if dnf else "")
-        run_vals[label] = (x_vals, y_vals, z_vals, yaw_vals, record['stage.name'],
-                           max_speed, stage_time, dnf)
+        
+        runs[label] = Run(stage_name= record['stage.name'],
+                          x_vals = x_vals,
+                          y_vals = y_vals,
+                          z_vals = z_vals,
+                          yaw_vals = yaw_vals,
+                          speed_vals = speed_vals,
+                          stage_time = stage_time,
+                          dnf = dnf)
+        #run_vals[label] = (x_vals, y_vals, z_vals, yaw_vals, record['stage.name'],
+        #                   max_speed, stage_time, dnf)
 
         log_debug("Retrieved Stage: {}, Attempt: {}, Data Points: {}, Stage Time: {}, Max Speed: {}".format(
                                                                     record['stage.name'],
                                                                     record['stage.run_attempt'],
                                                                     points, stage_time,
-                                                                    max_speed))
-    return run_vals
+                                                                    runs[label].max_speed))
+    return runs
 
 
-def display_runs(run_vals, plot_yaw_arrows=False):
+def display_runs(runs, plot_yaw_arrows=False):
     plt.style.use('_mpl-gallery')
     # plot
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -249,29 +278,25 @@ def display_runs(run_vals, plot_yaw_arrows=False):
     ax.set_prop_cycle(color=colormaps["tab20"].colors)
     ax.set_aspect('equal', adjustable="box")
 
-    for label, vector_vals in run_vals.items():
+    for label, run in runs.items():
         # Add the path
-        ax.plot(vector_vals[0], vector_vals[1], linewidth=1.0, label = label)
+        ax.plot(run.x_vals, run.y_vals, linewidth=1.0, label = label)
         # Add begin and end markers
-        ax.plot(vector_vals[0][0], vector_vals[1][0],
+        ax.plot(run.x_vals[0], run.y_vals[0],
                 markersize=5, marker="o", markerfacecolor="blue")
-        ax.plot(vector_vals[0][-1], vector_vals[1][-1],
+        ax.plot(run.x_vals[-1], run.y_vals[-1],
                 markersize=5, marker="o", markerfacecolor="red")
 
     if plot_yaw_arrows:
-        x_tail = 0
-        y_tail = 0
         x_head = 1
         y_head = 1
-        dx = x_head - x_tail
-        dy = y_head - y_tail
 
         click.echo("Plotting Yaw Arrows")
         #Add some yaw angle arrows
-        for label, vector_vals in run_vals.items():
+        for label, run in runs.items():
             counter = 0
-            max_speed = vector_vals[5]
-            for x, y, yaw_info in zip(vector_vals[0], vector_vals[1], vector_vals[3]):
+            max_speed = run.max_speed
+            for x, y, yaw_info in zip(run.x_vals, run.y_vals, run.yaw_vals):
                 if counter % configuration["arrow_density"] != 0:
                     counter += 1
                     continue
@@ -291,7 +316,7 @@ def display_runs(run_vals, plot_yaw_arrows=False):
 
     plt.subplots_adjust(top=0.97, bottom=0.03, left=0.05, right=0.95)
     plt.legend()
-    plt.title(vector_vals[4])
+    plt.title(run.stage_name)
     plt.show()
 
 
