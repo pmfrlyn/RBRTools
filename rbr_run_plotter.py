@@ -257,9 +257,7 @@ def process_run_results(results):
                           speed_vals = speed_vals,
                           stage_time = stage_time,
                           dnf = dnf)
-        #run_vals[label] = (x_vals, y_vals, z_vals, yaw_vals, record['stage.name'],
-        #                   max_speed, stage_time, dnf)
-
+        
         log_debug("Retrieved Stage: {}, Attempt: {}, Data Points: {}, Stage Time: {}, Max Speed: {}".format(
                                                                     record['stage.name'],
                                                                     record['stage.run_attempt'],
