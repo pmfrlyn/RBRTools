@@ -1,4 +1,3 @@
-import configparser
 import datetime
 import math
 import os.path
@@ -7,10 +6,13 @@ from collections import defaultdict
 from dataclasses import dataclass
 
 import click
+import numpy as np
 import influxdb_client
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib import colormaps
+from matplotlib.collections import LineCollection
+
 
 from rbr_tools import configure_from_file
 from rbr_tools import rbr_tools_configuration as configuration
@@ -33,6 +35,10 @@ class Run:
     @property
     def max_speed(self) -> float:
         return max(self.speed_vals)
+    
+    @property
+    def min_speed(self) -> float:
+        return min(self.speed_vals)
 
 
 @click.group()
@@ -134,16 +140,53 @@ def list_run_attempts(session_id, run_id):
 @cli.command()
 @click.argument("session_id")
 @click.argument("run_id")
-@click.option("--plot-yaw-arrows",
+@click.option("--yaw-arrows",
               is_flag=True, default=False,
               help="show yaw arrows on map (WARNING: Can be slow with more than one attempt)")
 @click.option("--attempt",
               type=click.INT, multiple=True,
               help="Show only this attempt. Command can be specified more than once")
-def plot_attempts(session_id, run_id, plot_yaw_arrows, attempt):
+def plot_attempts(session_id, run_id, yaw_arrows, attempt):
     display_runs(
         process_run_results(get_attempts(session_id, run_id, attempt)),
-        plot_yaw_arrows=plot_yaw_arrows
+        yaw_arrows=yaw_arrows
+    )
+
+@cli.command()
+@click.argument("session_id")
+@click.argument("run_id")
+@click.option("--yaw-arrows",
+              is_flag=True, default=False,
+              help="show yaw arrows on map (WARNING: Can be slow with more than one attempt)")
+@click.option("--attempt",
+              type=click.INT, multiple=False,
+              help="Specify an attempt. Otherwise we display the fastest attempt")
+def plot_attempt(session_id, run_id, yaw_arrows, attempt):
+    run_results = process_run_results(get_attempts(session_id, run_id, attempt))
+    
+    runs = {}
+    if not attempt:
+        fastest_run = None
+        longest_dnf = None
+        for key, run in run_results.items():
+            if run.dnf:
+                if not longest_dnf or run.stage_time > longest_dnf[1].stage_time:
+                    longest_dnf = (key, run)
+            else:
+                if not fastest_run or run.stage_time < fastest_run[1].stage_time:
+                    fastest_run = (key,  run)
+        if not fastest_run:
+            runs[longest_dnf[0]] = longest_dnf[1]
+        else:
+            runs[fastest_run[0]]= fastest_run[1]
+    else:
+        key = run_results.keys()[attempt - 1]
+        runs[key] = run_results[key]
+
+    display_runs(
+        runs,
+        yaw_arrows=yaw_arrows,
+        show_speed_gradient=True
     )
 
 
@@ -266,7 +309,10 @@ def process_run_results(results):
     return runs
 
 
-def display_runs(runs, plot_yaw_arrows=False):
+def display_runs(runs, yaw_arrows=False, show_speed_gradient=False):
+    if show_speed_gradient:
+        assert len(runs) == 1
+
     plt.style.use('_mpl-gallery')
     # plot
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -278,14 +324,29 @@ def display_runs(runs, plot_yaw_arrows=False):
 
     for label, run in runs.items():
         # Add the path
-        ax.plot(run.x_vals, run.y_vals, linewidth=1.0, label = label)
+        if show_speed_gradient:
+            x_vals = np.array(run.x_vals)
+            y_vals = np.array(run.y_vals)
+            speed_vals = np.array(run.speed_vals)
+            path_points = np.array([x_vals, y_vals]).T.reshape(-1, 1, 2)
+            segments = np.concatenate([path_points[:-1], path_points[1:]], axis=1)
+
+            norm = plt.Normalize(run.min_speed, run.max_speed)
+            lc = LineCollection(segments, cmap='viridis', norm=norm, label=label)
+            lc.set_array(speed_vals)
+            lc.set_linewidth(2)
+            line = ax.add_collection(lc)
+            fig.colorbar(line, ax=ax)
+        else:
+            ax.plot(run.x_vals, run.y_vals, linewidth=1.0, label = label)
+
         # Add begin and end markers
         ax.plot(run.x_vals[0], run.y_vals[0],
                 markersize=5, marker="o", markerfacecolor="blue")
         ax.plot(run.x_vals[-1], run.y_vals[-1],
                 markersize=5, marker="o", markerfacecolor="red")
 
-    if plot_yaw_arrows:
+    if yaw_arrows:
         x_head = 1
         y_head = 1
 
@@ -293,7 +354,6 @@ def display_runs(runs, plot_yaw_arrows=False):
         #Add some yaw angle arrows
         for label, run in runs.items():
             counter = 0
-            max_speed = run.max_speed
             for x, y, yaw_info in zip(run.x_vals, run.y_vals, run.yaw_vals):
                 if counter % configuration["arrow_density"] != 0:
                     counter += 1
@@ -315,6 +375,7 @@ def display_runs(runs, plot_yaw_arrows=False):
     plt.subplots_adjust(top=0.97, bottom=0.03, left=0.05, right=0.95)
     plt.legend()
     plt.title(run.stage_name)
+
     plt.show()
 
 
