@@ -323,6 +323,10 @@ def display_runs(runs, yaw_arrows=False, show_speed_gradient=False):
     ax.set_prop_cycle(color=colormaps["tab20"].colors)
     ax.set_aspect('equal', adjustable="box")
 
+    if not runs.items():
+        click.echo("Nothing found in time window")
+        return
+    
     for label, run in runs.items():
         # Add the path
         if show_speed_gradient:
