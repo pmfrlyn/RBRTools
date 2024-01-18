@@ -141,6 +141,10 @@ Attempts in Run 1 (-2d)
 Now to show a pretty picture with some yaw arrows that compares the slowest attempt to the fastest one. Keep in mind that adding yaw arrows can make the display really slow if there's a lot of attempts overlayed on each other.
 
 ```
-rbr_run_plotter plot-attempts --attempt 1 --attempt 6 --plot-yaw-arrows "2024-01-10 13:57:20.903919" 1
+rbr_run_plotter plot-attempts --attempt 1 --attempt 6 --yaw-arrows "2024-01-10 13:57:20.903919" 1
 ```
 ![](samples/sample_plotted_run.png?raw=true)
+
+`list-run-attempt` like its plural cousin plots the path of a single run attempt with extra speed information added to the plot. The semantics are similar to those of `list-run-attempts`, except that the `--attempt` option can only be issued once, and if no attempt is given *the fastest attempt is shown*
+
+![](samples/sample_plotted_run_with_speed.png?raw=true)
