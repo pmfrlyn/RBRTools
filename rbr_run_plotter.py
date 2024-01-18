@@ -152,6 +152,7 @@ def plot_attempts(session_id, run_id, yaw_arrows, attempt):
         yaw_arrows=yaw_arrows
     )
 
+
 @cli.command()
 @click.argument("session_id")
 @click.argument("run_id")
