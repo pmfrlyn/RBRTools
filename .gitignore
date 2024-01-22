@@ -7,3 +7,4 @@ __pycache__
 output.txt
 *.egg-info
 *.code-workspace
+notebooks
