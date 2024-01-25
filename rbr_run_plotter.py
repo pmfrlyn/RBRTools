@@ -133,8 +133,8 @@ def list_run_attempts(session_id, run_id):
     click.echo("Attempts in Run {} ({})".format(run_id, configuration["lookback_window"]))
 
     for ct, key in enumerate(run_results, 1):
-        click.echo("{} -> {} {}".format(ct, run_results[key][-2],
-                                        "(DNF)" if run_results[key][-1] else ""))
+        click.echo("{} -> {} {}".format(ct, run_results[key].stage_name,
+                                        "(DNF)" if run_results[key].dnf else ""))
 
 
 @cli.command()
