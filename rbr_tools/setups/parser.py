@@ -20,6 +20,7 @@ SECTIONS = [
     "TyreRB",
 ]
 
+
 def lsp_section(section_name):
     number_value = pp.pyparsing_common.number()
     vector_value = (pp.pyparsing_common.number().setName("X") +
@@ -40,6 +41,7 @@ def lsp_section(section_name):
                     )).setName("KVPair")
                 )
             ).setName("Values")))
+
 
 def lsp_parser():
     return (
