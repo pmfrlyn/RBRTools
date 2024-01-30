@@ -17,7 +17,9 @@ def main():
 
     for section_name, section_data in csetup.items():
         for key, value in section_data.items():
-            if value != csetup2[section_name][key]:
+            if key not in csetup2[section_name]:
+                diffs[section_name].append((key, value, "No Key"))
+            elif value != csetup2[section_name][key]:
                 diffs[section_name].append((key, value, csetup2[section_name][key]))
         
     if not diffs:
