@@ -4,3 +4,4 @@ matplotlib
 click
 aiohttp
 async-timeout
+pytest
