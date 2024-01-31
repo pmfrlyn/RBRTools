@@ -3,13 +3,13 @@ from collections import namedtuple
 MESSAGE_LENGTH = 664
 
 FORMAT_INFO = (
-    ("<", ""),                         #little endian
+    ("<", ""),                         # little endian
     ("I", "general.total_steps"),
     ("I", "stage.index"),
     ("f", "stage.progress"),
-    ("f", "stage.total_race_time"),    #seconds?
+    ("f", "stage.total_race_time"),
     ("f", "stage.drive_line_location"),
-    ("f", "stage.distance_to_end"),    #meters or feet(?) depending on config
+    ("f", "stage.distance_to_end"),    # meters or feet(?) depending on config
 
     ("f", "control.steering_input"),
     ("f", "control.throttle_input"),
@@ -21,7 +21,7 @@ FORMAT_INFO = (
     ("f", "control.handbrake_pressure"),
 
     ("i", "car.index"),
-    ("f", "car.speed"),                               #in mph or kmh depending on config
+    ("f", "car.speed"),                               # in mph or kmh depending on config
     ("f", "car.position_x"),
     ("f", "car.position_y"),
     ("f", "car.position_z"),
@@ -44,9 +44,9 @@ FORMAT_INFO = (
     ("f", "car.accelerations.yaw"),
 
     ("f", "engine.rpm"),
-    ("f", "engine.radiator_coolant_temperature"),       #kelvin
-    ("f", "engine.engine_coolant_temperature"),         #kelvin
-    ("f", "engine.engine_temperature"),                #kelvin
+    ("f", "engine.radiator_coolant_temperature"),       # kelvin
+    ("f", "engine.engine_coolant_temperature"),         # kelvin
+    ("f", "engine.engine_temperature"),                # kelvin
 
     ("f", "suspension.lf.spring_deflection"),
     ("f", "suspension.lf.rollbar_force"),
@@ -58,8 +58,8 @@ FORMAT_INFO = (
     ("f", "suspension.lf.damper.damage"),
     ("f", "suspension.lf.damper.pistonvelocity"),
 
-    ("f", "suspension.lf.brake.layer_temperature"),    #kelvin?
-    ("f", "suspension.lf.brake.temperature"),         #kelvin?
+    ("f", "suspension.lf.brake.layer_temperature"),    # kelvin?
+    ("f", "suspension.lf.brake.temperature"),         # kelvin?
     ("f", "suspension.lf.brake.wear"),
 
     ("f", "suspension.lf.tire.pressure"),
