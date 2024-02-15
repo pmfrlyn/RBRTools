@@ -10,19 +10,16 @@ from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from rbr_tools import configure_from_file
 from rbr_tools import rbr_tools_configuration as configuration
 from rbr_tools.telemetry import (
-    MAPS_INDEX,
     read_rbr_telemetry,
     process_telemetry_packet, 
     configure_map_index)
 
-current_stage = None
-current_total_steps = None
-stage_run = 1
-stage_run_attempt = 1
-
-pause_announced = False
-paused_stage = None
-paused_total_steps = None
+# There are stages that do not return the correct ID when telemetry is sent out
+# this is particularly noticeable in the RX Plugin tracks 
+# the default return is ID 41 when the system doesn't know about the stage, so we compare
+# track len to determine whether or not we are ACTUALLY looking at COTE D ARBROZ
+COTE_D_ARBROZ_LEN = 4652
+COTE_D_ARBROZ_ID = 41
 
 session_tag = str(datetime.datetime.now())
 
@@ -94,13 +91,15 @@ def cli(driver, measurement, bucket, org, token, url, host, port, config_path, m
 
 async def main():
     click.echo("RBR Influx Telemetry Sender ({})".format(session_tag))
+
     data_queue = asyncio.Queue()
     loop = asyncio.get_event_loop()
     running = loop.create_future()
+    telemetry_session = RBRTelemetrySession()
 
     try:
         while True:
-            await rbr_telemetry_get(
+            await telemetry_session.get(
                 configuration['rbr_telemetry_host'],
                 int(configuration['rbr_telemetry_port']),
                 data_queue)
@@ -126,7 +125,7 @@ async def rbr_telemetry_send(data_queue: asyncio.Queue):
     except asyncio.exceptions.TimeoutError:
         return
 
-    tag_fields = ("stage.index", "car.index", "stage.name")
+    tag_fields = ("stage.index", "car.index", "stage.name")  
 
     del point["general.total_steps"]
 
@@ -135,8 +134,6 @@ async def rbr_telemetry_send(data_queue: asyncio.Queue):
         influx_point = influxdb_client.Point("RBR_RUN")
         influx_point.tag("driver", driver)
         influx_point.tag("session_id", session_tag)
-        influx_point.tag("stage.run", stage_run)
-        influx_point.tag("stage.run_attempt", stage_run_attempt)
 
         for tag in tag_fields:
             influx_point.tag(tag, point[tag])
@@ -148,57 +145,80 @@ async def rbr_telemetry_send(data_queue: asyncio.Queue):
     
         await write_api.write(bucket="rbrtelemetry", record=influx_point)
 
+class RBRTelemetrySession(object):
+    def __init__(self):
+        self.current_stage = None
+        self.current_stage_name = None
+        self.current_total_steps = None
+        self.stage_run = 1
+        self.stage_run_attempt = 1
 
-async def rbr_telemetry_get(host, port, data_queue: asyncio.Queue):
-    global current_stage
-    global current_total_steps
-    global paused_stage
-    global paused_total_steps
-    global stage_run
-    global stage_run_attempt
-    global pause_announced
+        self.pause_announced = False
+        self.paused_stage = None
+        self.paused_total_steps = None
 
-    point = None
-    new_stage = current_stage is None
+        self.apply_stage_collision_fix = False
 
-    data = await asyncio.get_running_loop().run_in_executor(None, read_rbr_telemetry, host, port)
+    async def get(self, host, port, data_queue: asyncio.Queue):
+        point = None
+        new_stage = self.current_stage is None
 
-    if data:
-        point = process_telemetry_packet(data, unit="C")
+        data = await asyncio.get_running_loop().run_in_executor(None, read_rbr_telemetry, host, port)
 
-        current_stage = point['stage.index']
-        current_total_steps = point['general.total_steps']
+        if data:
+            point = process_telemetry_packet(data, unit="C")
 
-        # handle the paused state and resume with the correct data updates
-        if paused_stage and paused_total_steps:
-            pause_announced = False
+            # stage index fix. remove when there's a proper ID mapping for RX stages plugin :(
+            if not self.apply_stage_collision_fix and point["stage.index"] == COTE_D_ARBROZ_ID and int(point["stage.distance_to_end"]) != COTE_D_ARBROZ_LEN:
+                print("applying the stage collision fix :(")
+                point["stage.name"] = "UNKNOWN-{}".format(int(point["stage.distance_to_end"]))
+                point["stage.index"] = int(point["stage.distance_to_end"])
+                self.current_stage = point["stage.index"]
+                self.current_stage_name = point["stage.name"]
+                self.apply_stage_collision_fix = True
 
-            if paused_stage == current_stage and paused_total_steps > current_total_steps:
-                click.echo("Stage Restart!")
-                new_stage = True
-                stage_run_attempt += 1
-            elif paused_stage == current_stage and paused_total_steps <= current_total_steps:
-                click.echo("Resuming From Pause")
-            elif paused_stage != current_stage:
-                new_stage = True
-                stage_run += 1
-                stage_run_attempt = 1
+            if self.apply_stage_collision_fix is False:
+                self.current_stage = point['stage.index']
+                self.current_stage_name = point['stage.name']
+                
+            self.current_total_steps = point['general.total_steps']
 
-            paused_stage = paused_total_steps = None
+            # handle the paused state and resume with the correct data updates
+            if self.paused_stage and self.paused_total_steps:
+                self.pause_announced = False
 
-        if new_stage:
-            click.echo("Starting Stage - SS: {}, Run: {}, Attempt: {}".format("{} ({})".format(
-                MAPS_INDEX.get(current_stage, current_stage), current_stage), stage_run, stage_run_attempt))
+                if self.paused_stage == self.current_stage and self.paused_total_steps > self.current_total_steps:
+                    click.echo("Stage Restart!")
+                    new_stage = True
+                    self.stage_run_attempt += 1
+                elif self.paused_stage == self.current_stage and self.paused_total_steps <= self.current_total_steps:
+                    click.echo("Resuming From Pause")
+                elif self.paused_stage != self.current_stage:
+                    new_stage = True
+                    self.stage_run += 1
+                    self.stage_run_attempt = 1
+                    self.apply_stage_collision_fix = False
 
-        await data_queue.put(point)
-    else:
-        if not(paused_stage and paused_total_steps):
-            paused_stage = current_stage
-            paused_total_steps = current_total_steps
+                self.paused_stage = self.paused_total_steps = None
+                
+            if new_stage:
+                click.echo("Starting Stage - SS: {}, Run: {}, Attempt: {}".format("{} ({})".format(
+                    self.current_stage_name, self.current_stage), self.stage_run, self.stage_run_attempt))
+
+            # enrich data
+            point["stage.run"] = self.stage_run
+            point["stage.run_attempt"] = self.stage_run_attempt            
+            await data_queue.put(point)
         else:
-            if not pause_announced:
-                click.echo("Paused - SS: {}, Steps: {}".format("{} ({})".format(MAPS_INDEX.get(paused_stage, paused_stage), paused_stage), paused_total_steps))
-                pause_announced = True
+            if not(self.paused_stage and self.paused_total_steps):
+                self.paused_stage = self.current_stage
+                self.paused_total_steps = self.current_total_steps
+            else:
+                if not self.pause_announced:
+                    click.echo("Paused - SS: {}, Steps: {}".format("{} ({})".format(
+                        self.current_stage_name, self.paused_stage), self.paused_total_steps))
+                    self.pause_announced = True
+
 
 if __name__ == "__main__":
     cli()
