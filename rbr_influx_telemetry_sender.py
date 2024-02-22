@@ -157,8 +157,6 @@ class RBRTelemetrySession(object):
         self.paused_stage = None
         self.paused_total_steps = None
 
-        self.apply_stage_collision_fix = False
-
     async def get(self, host, port, data_queue: asyncio.Queue):
         point = None
         new_stage = self.current_stage is None
@@ -168,18 +166,8 @@ class RBRTelemetrySession(object):
         if data:
             point = process_telemetry_packet(data, unit="C")
 
-            # stage index fix. remove when there's a proper ID mapping for RX stages plugin :(
-            if not self.apply_stage_collision_fix and point["stage.index"] == COTE_D_ARBROZ_ID and int(point["stage.distance_to_end"]) != COTE_D_ARBROZ_LEN:
-                print("applying the stage collision fix :(")
-                point["stage.name"] = "UNKNOWN-{}".format(int(point["stage.distance_to_end"]))
-                point["stage.index"] = int(point["stage.distance_to_end"])
-                self.current_stage = point["stage.index"]
-                self.current_stage_name = point["stage.name"]
-                self.apply_stage_collision_fix = True
-
-            if self.apply_stage_collision_fix is False:
-                self.current_stage = point['stage.index']
-                self.current_stage_name = point['stage.name']
+            self.current_stage = point['stage.index']
+            self.current_stage_name = point['stage.name']
                 
             self.current_total_steps = point['general.total_steps']
 
@@ -197,7 +185,6 @@ class RBRTelemetrySession(object):
                     new_stage = True
                     self.stage_run += 1
                     self.stage_run_attempt = 1
-                    self.apply_stage_collision_fix = False
 
                 self.paused_stage = self.paused_total_steps = None
                 
