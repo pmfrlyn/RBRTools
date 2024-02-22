@@ -125,7 +125,7 @@ async def rbr_telemetry_send(data_queue: asyncio.Queue):
     except asyncio.exceptions.TimeoutError:
         return
 
-    tag_fields = ("stage.index", "car.index", "stage.name")  
+    tag_fields = ("stage.index", "car.index", "stage.name", "stage.run")  
 
     del point["general.total_steps"]
 

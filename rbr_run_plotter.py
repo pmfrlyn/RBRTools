@@ -62,8 +62,12 @@ class Run:
     envvar="RBR_TELEMETRY_CONFIG",
     default=os.path.join(pathlib.Path.home(), ".rbr_tools.cfg"),
     type=click.Path(exists=False))
-def cli(time_window, measurement, bucket, org, token, url, config_path):
+@click.option("--debug", is_flag=True, default=False,
+    help="enable debugging")
+def cli(time_window, measurement, bucket, org, token, url, config_path, debug):
     global client
+    global DEBUG
+    DEBUG = debug
 
     if os.path.exists(config_path): # aww, yis, configfile
         configure_from_file(config_path)
@@ -147,11 +151,17 @@ def list_run_attempts(session_id, run_id):
               type=click.INT, multiple=True,
               help="Show only this attempt. Command can be specified more than once")
 def plot_attempts(session_id, run_id, yaw_arrows, attempt):
-    display_runs(
-        process_run_results(get_attempts(session_id, run_id, attempt)),
-        yaw_arrows=yaw_arrows
-    )
+    run_results = process_run_results(get_attempts(session_id, run_id))
+    runs = {}
 
+    if attempt:
+        for idx in attempt:
+            key = list(run_results.keys())[idx - 1]
+            runs[key] = run_results[key]
+    else:
+        runs = run_results
+
+    display_runs(runs, yaw_arrows=yaw_arrows)
 
 @cli.command()
 @click.argument("session_id")
@@ -163,7 +173,7 @@ def plot_attempts(session_id, run_id, yaw_arrows, attempt):
               type=click.INT, multiple=False,
               help="Specify an attempt. Otherwise we display the fastest attempt")
 def plot_attempt(session_id, run_id, yaw_arrows, attempt):
-    run_results = process_run_results(get_attempts(session_id, run_id, attempt))
+    run_results = process_run_results(get_attempts(session_id, run_id))
     
     runs = {}
     if not attempt:
@@ -181,7 +191,7 @@ def plot_attempt(session_id, run_id, yaw_arrows, attempt):
         else:
             runs[fastest_run[0]]= fastest_run[1]
     else:
-        key = run_results.keys()[attempt - 1]
+        key = list(run_results.keys())[attempt - 1]
         runs[key] = run_results[key]
 
     display_runs(
@@ -202,7 +212,7 @@ def log_debug(msg):
     click.echo(msg)
 
 
-def get_attempts(session_id, run_id, attempts=None):
+def get_attempts(session_id, run_id): #, attempts=None):
     query = ""
 
     query_base = """from(bucket: "{bucket}")
@@ -217,9 +227,12 @@ def get_attempts(session_id, run_id, attempts=None):
 
     query += query_base
 
-    if attempts:
-        attempt_query = " or ".join(['r["stage.run_attempt"] == "{}"'.format(a) for a in attempts])
-        query += "\n" + (" " * 8) + "|> filter(fn: (r) => {})".format(attempt_query)
+    #if attempts:
+    #    if isinstance(attempts, int):
+    #        attempts = [attempts]
+
+    # attempt_query = " or ".join(['r["stage.run_attempt"] == "{}"'.format(a) for a in attempts])
+    #    query += "\n" + (" " * 8) + "|> filter(fn: (r) => {})".format(attempt_query)
 
     selected_values = """
         |> filter(fn: (r) => r["_field"] == "car.position_x" or
@@ -228,12 +241,14 @@ def get_attempts(session_id, run_id, attempts=None):
                              r["_field"] == "stage.distance_to_end" or
                              r["_field"] == "car.speed" or
                              r["_field"] == "stage.name" or
+                             r["_field"] == "stage.run_attempt" or
                              r["_field"] == "car.yaw")
         |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
         |> group(columns: ["stage.run_attempt"])"""
 
     query += selected_values
 
+    log_debug(query)
     return run_query(query, configuration["org"])
 
 
