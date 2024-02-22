@@ -163,6 +163,7 @@ def plot_attempts(session_id, run_id, yaw_arrows, attempt):
 
     display_runs(runs, yaw_arrows=yaw_arrows)
 
+
 @cli.command()
 @click.argument("session_id")
 @click.argument("run_id")
@@ -209,10 +210,10 @@ def run_query(query, org):
 def log_debug(msg):
     if not DEBUG:
         return
-    click.echo(msg)
+    click.echo("DEBUG: {}".format(msg))
 
 
-def get_attempts(session_id, run_id): #, attempts=None):
+def get_attempts(session_id, run_id):
     query = ""
 
     query_base = """from(bucket: "{bucket}")
@@ -227,13 +228,6 @@ def get_attempts(session_id, run_id): #, attempts=None):
 
     query += query_base
 
-    #if attempts:
-    #    if isinstance(attempts, int):
-    #        attempts = [attempts]
-
-    # attempt_query = " or ".join(['r["stage.run_attempt"] == "{}"'.format(a) for a in attempts])
-    #    query += "\n" + (" " * 8) + "|> filter(fn: (r) => {})".format(attempt_query)
-
     selected_values = """
         |> filter(fn: (r) => r["_field"] == "car.position_x" or
                              r["_field"] == "car.position_y" or
@@ -241,6 +235,7 @@ def get_attempts(session_id, run_id): #, attempts=None):
                              r["_field"] == "stage.distance_to_end" or
                              r["_field"] == "car.speed" or
                              r["_field"] == "stage.name" or
+                             r["_field"] == "stage.total_race_time" or
                              r["_field"] == "stage.run_attempt" or
                              r["_field"] == "car.yaw")
         |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
@@ -255,7 +250,7 @@ def get_attempts(session_id, run_id): #, attempts=None):
 def process_run_results(results):
     runs = dict()
 
-    for plot_table in results:
+    for idx, plot_table in enumerate(results):
         # positional values
         x_vals = []
         y_vals = []
@@ -269,18 +264,19 @@ def process_run_results(results):
         prev_record = None
         points = 0
 
+        log_debug("Processing Stage Result: {}".format(idx + 1))
         for record in plot_table.records:
             points += 1
             # extract start and end times for the stage
             if prev_record and not start_time and float(record['car.speed']) > 0:
                 if float(prev_record['stage.distance_to_end']) > record['stage.distance_to_end']:
-                    start_time = prev_record['_time']
+                    start_time = datetime.timedelta(seconds=prev_record['stage.total_race_time'])
                     log_debug("Stage Start Time: {}".format(start_time))
                 else:
-                    log_debug("Ignoring speed wiggle @ {}".format(record["_time"]))
+                    log_debug("Ignoring speed wiggle @ {}".format(record["stage.total_race_time"]))
 
             if not end_time and int(record['stage.distance_to_end']) <= 0:
-                end_time = record['_time']
+                end_time = datetime.timedelta(seconds=record['stage.total_race_time'])
                 log_debug("Stage End Time: {}".format(end_time))
 
             if start_time or not(len(x_vals) or len(y_vals) or len(z_vals)):
@@ -297,7 +293,7 @@ def process_run_results(results):
 
         dnf = False
         if not end_time: # whoa cowboy, we didn't finish that run did we?
-            end_time = record["_time"] # nab the last record in the scope
+            end_time = datetime.timedelta(seconds=record['stage.total_race_time']) # nab the last record in the scope
             dnf = True
 
         if not start_time:
@@ -375,7 +371,7 @@ def display_runs(runs, yaw_arrows=False, show_speed_gradient=False):
         for label, run in runs.items():
             counter = 0
             for x, y, yaw_info in zip(run.x_vals, run.y_vals, run.yaw_vals):
-                if counter % configuration["arrow_density"] != 0:
+                if counter % int(configuration["arrow_density"]) != 0:
                     counter += 1
                     continue
                 else:
@@ -384,8 +380,8 @@ def display_runs(runs, yaw_arrows=False, show_speed_gradient=False):
                 yaw_degrees, _ = yaw_info
                 yaw_radians = (math.pi * yaw_degrees) / 180
 
-                x_head = x + (math.cos(yaw_radians) * configuration["arrow_scale"])
-                y_head = y + (math.sin(yaw_radians) * configuration["arrow_scale"])
+                x_head = x + (math.cos(yaw_radians) * float(configuration["arrow_scale"]))
+                y_head = y + (math.sin(yaw_radians) * float(configuration["arrow_scale"]))
 
                 arrow = mpatches.FancyArrowPatch((x, y), (x_head, y_head),
                                                  mutation_scale=5,
